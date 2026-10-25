@@ -1,4 +1,4 @@
-# 0001 · Daten über Branch `data` statt Vercel-Deploy pro Update
+# 0001 · (abgelöst durch 0003) Daten über Branch `data` statt Vercel-Deploy pro Update
 
 **Entscheidung:** Die Pipeline (Homeserver-Cron, alle 5 min) pusht `advisories.json` + `meta.json` als
 Einzel-Commit ohne Historie (force) auf den Branch `data`. Die Seite holt alle 30 s den Commit-SHA per

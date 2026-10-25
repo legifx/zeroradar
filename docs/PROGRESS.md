@@ -5,15 +5,29 @@ Wer etwas ändert, trägt es **oben im Log** ein.
 ## Stand
 
 Zero Radar: frischeste Sicherheitslücken & Leaks in Echtzeit – Website, RSS, MCP, Skill.
-Öffentliches Repo legifx/zeroradar, Seite auf Vercel, Pipeline per Cron auf dem Homeserver (~/zeroradar),
-Daten auf Branch `data` (ADR 0001), KI über OpenRouter ZDR (ADR 0002).
+Öffentliches Repo legifx/zeroradar, Seite auf Vercel. Pipeline als Dauerdienst auf dem Homeserver
+(~/zeroradar, systemd-User-Dienst `zeroradar`, Lese-Server 127.0.0.1:8793, öffentlich über Tailscale Funnel
+`/zeroradar`), meldet Änderungen per `/api/revalidate` (ADR 0003). KI über OpenRouter ZDR (ADR 0002).
 
-- Pipeline: `pipeline/run.mjs` (Quellen in `pipeline/sources/`, Feeds in `config/feeds.mjs`)
-- Seite: Next.js 16 in `app/` (Feed, `/v/[id]`, `/integrate`, `/feed.xml`, `/api/advisories`, `/api/check`, `/api/mcp`)
+- Pipeline: `pipeline/daemon.mjs` → `engine.mjs` (Takt je Quelle), Quellen in `pipeline/sources/`, Feeds + Vertrauen in `config/feeds.mjs`
+- Seite: Next.js 16 in `app/` (Feed, `/v/[id]`, `/about`, `/integrate`, `/feed.xml`, `/api/advisories|check|mcp|meta|revalidate`)
+- Daten für die Seite: `lib/data.ts` (`ZR_DATA_URL`, lokal `ZR_LOCAL_DATA=1` → `var/public/v1`)
 - Skill: `skill/zeroradar/` (Lockfile-Scanner `scripts/scan.mjs`)
-- Server-Wächter: `ops/server-watch.mjs`, Konfiguration außerhalb des Repos (`~/.config/zeroradar/server-watch.json`)
+- Server-Wächter: `ops/server-watch.mjs`, vom Dienst nach Änderungen gestartet; Konfiguration `~/.config/zeroradar/server-watch.json`
 
 ## Log
+
+### 2026-10-25 · v0.2 Dauerdienst + Redesign
+- Pipeline läuft dauerhaft statt Cron: jede Quelle im eigenen Takt (GHSA 60 s … EPSS 6 h), bedingte Anfragen,
+  KI-Tagesbudget. Keine Commits mehr, Branch `data` und Cron entfallen (ADR 0003).
+- Vertrauensstufen je Quelle (official/research/press/community), Bestätigung über mehrere Herausgeber,
+  "exploited" nur mit offizieller Quelle; Fix-Nachverfolgung (OSV/GHSA, `fix_available` in der Zeitleiste).
+- KI schreibt zusätzlich Ablaufbild (`flow`), "wer ist betroffen", Schritte. Ablaufbild in jeder Top-Karte.
+- Redesign der Seite: redaktionell ruhig, hell/dunkel, responsiv (Handy geprüft per Headless-Screenshot);
+  Kacheln, Ansichten "Being exploited / No fix known / New fixes", Detailseite mit Urteil, Diagramm,
+  Betroffenheit, Zeitleiste, Quellen nach Vertrauen; `/about` aus `config/feeds.mjs` erzeugt.
+- RSS `?view=fixes` (eigene guid pro Fix), MCP/API auf neues Format.
+- Port 8790 auf dem Homeserver belegt → 8793.
 
 ### 2026-10-25 · v0.1 gebaut
 - Gemacht: Pipeline (GHSA, NVD, KEV, EPSS, HIBP, 22 Feeds, HN), KI-Triage + Briefings, Seite mit Feed/Detail/RSS/API/MCP,

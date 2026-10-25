@@ -1,67 +1,160 @@
 import Link from "next/link";
-import type { Advisory } from "@/lib/data";
+import { isFresh, type Entry, type Flow } from "@/lib/data";
+import { BAD, Icon, iconName } from "./icons";
 import { RelTime } from "./reltime";
 
-export function RadarLogo({ size = 22 }: { size?: number }) {
+export function RadarLogo({ size = 24 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
-      <circle cx="16" cy="16" r="14" fill="none" stroke="var(--accent)" strokeOpacity=".35" strokeWidth="1.5" />
-      <circle cx="16" cy="16" r="8.5" fill="none" stroke="var(--accent)" strokeOpacity=".5" strokeWidth="1.5" />
-      <path d="M16 16 L16 2 A14 14 0 0 1 28.1 9 Z" fill="var(--accent)" fillOpacity=".28" />
-      <line x1="16" y1="16" x2="28.1" y2="9" stroke="var(--accent)" strokeWidth="1.8" />
-      <circle cx="21.5" cy="7.5" r="2" fill="var(--crit)" />
-      <circle cx="16" cy="16" r="1.8" fill="var(--accent)" />
+      <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" strokeOpacity=".3" strokeWidth="2" />
+      <circle cx="16" cy="16" r="8" fill="none" stroke="currentColor" strokeOpacity=".5" strokeWidth="2" />
+      <path d="M16 16 28.1 9" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+      <circle cx="22" cy="7.5" r="2.6" fill="var(--crit)" />
+      <circle cx="16" cy="16" r="2.2" fill="currentColor" />
     </svg>
   );
 }
 
-const KIND_LABEL: Record<Advisory["kind"], string> = {
+export const SEV_WORD: Record<Entry["severity"], string> = {
+  critical: "Critical",
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+  unknown: "Unrated",
+};
+export const KIND_WORD: Record<Entry["kind"], string> = {
   vuln: "Vulnerability",
   breach: "Data breach",
-  incident: "Incident",
+  incident: "Security incident",
   malware: "Malicious package",
 };
 
-export function Badges({ a }: { a: Advisory }) {
-  const fresh =
-    a.first_seen && Date.now() - Date.parse(a.first_seen) < 6 * 3600e3 && Date.now() - Date.parse(a.published) < 48 * 3600e3;
+export function confWord(c: Entry["confidence"]) {
+  const n = c.publishers;
+  if (c.level === "confirmed") return n > 1 ? `Official · ${n} sources` : "Official source";
+  if (c.level === "corroborated") return `${n} independent sources`;
+  if (c.level === "single") return "Single report";
+  return "Unverified";
+}
+
+export function Chips({ a, full }: { a: Entry; full?: boolean }) {
+  const ex = a.exploited;
+  const by = ex.by?.length ? ex.by.slice(0, 2).join(", ") : null;
+  const vulnish = a.kind === "vuln";
   return (
-    <div className="badges">
-      <span className="badge sev">{a.severity === "unknown" ? "unrated" : a.severity}</span>
-      {a.kind !== "vuln" && <span className="badge">{KIND_LABEL[a.kind]}</span>}
-      {a.exploited.status === "yes" && <span className="badge exp">● Exploited in the wild</span>}
-      {a.exploited.status === "reported" && <span className="badge rep">Exploitation reported</span>}
-      {a.kind === "vuln" && a.fix.status === "available" && <span className="badge fix">Fix available</span>}
-      {a.kind === "vuln" && a.fix.status === "partial" && <span className="badge nofix">Partial fix</span>}
-      {a.kind === "vuln" && a.fix.status === "none" && <span className="badge nofix">No fix yet</span>}
-      {fresh && <span className="badge new">NEW</span>}
+    <div className="chips">
+      {isFresh(a) && <span className="chip new">NEW</span>}
+      {ex.status === "yes" && (
+        <span className="chip exp">
+          <Icon name="alert" size={14} />
+          <span>Exploited in the wild{by ? ` · ${by}` : ""}</span>
+        </span>
+      )}
+      {ex.status === "reported" && (
+        <span className="chip rep">
+          <Icon name="alert" size={14} />
+          <span>Attacks reported{by ? ` · ${by}` : ""}</span>
+        </span>
+      )}
+      {vulnish && (a.fix.status === "available" || a.fix.status === "partial") && (
+        <span className="chip fix" title={a.fix.text || undefined}>
+          <Icon name="check" size={14} />
+          <span>
+            {a.fix.status === "partial" ? "Partial fix" : "Fix available"}
+            {a.fix.since && Date.now() - Date.parse(a.fix.since) < 3 * 864e5 ? (
+              <>
+                {" "}· out <RelTime iso={a.fix.since} />
+              </>
+            ) : full && a.fix.text ? (
+              ` · ${a.fix.text}`
+            ) : null}
+          </span>
+        </span>
+      )}
+      {vulnish && a.fix.status === "none" && (
+        <span className="chip nofix">
+          <Icon name="clock" size={14} />
+          <span>No fix yet</span>
+        </span>
+      )}
+      <span className="chip conf" title="How many independent publishers report this">
+        <Icon name={a.confidence.level === "confirmed" ? "shield" : "sources"} size={14} />
+        <span>{confWord(a.confidence)}</span>
+      </span>
     </div>
   );
 }
 
-export function sevClass(a: Advisory) {
-  return `sev-${a.severity}`;
+/** Kleines Ablaufbild für Karten: Symbole mit Pfeilen, kurze Beschriftung, Ergebnis in Rot. */
+export function MiniFlow({ flow }: { flow: Flow }) {
+  const steps = flow.steps.slice(0, 4);
+  return (
+    <div className="mini" role="img" aria-label={`How it works: ${steps.map((s) => s.label).join(", then ")}${flow.outcome ? `. Result: ${flow.outcome}` : ""}`}>
+      {steps.map((s, i) => (
+        <div key={i} className={`st${BAD.has(iconName(s.icon)) ? " bad" : ""}`}>
+          <span className="bub">
+            <Icon name={s.icon} />
+          </span>
+          <span className="lbl">{s.label}</span>
+        </div>
+      ))}
+      {flow.outcome && (
+        <div className="st end">
+          <span className="bub">
+            <Icon name="alert" />
+          </span>
+          <span className="lbl">{flow.outcome}</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
-export function AdvisoryCard({ a }: { a: Advisory }) {
-  const eco = [...new Set(a.products.map((p) => p.ecosystem).filter(Boolean))].slice(0, 3);
-  const names = [...new Set(a.products.map((p) => p.name))];
+/** Ausführliches Ablaufbild (Detailseite): waagrecht am Rechner, senkrecht am Handy. */
+export function FlowDiagram({ flow }: { flow: Flow }) {
   return (
-    <Link href={`/v/${encodeURIComponent(a.id)}`} className={`item ${sevClass(a)}`}>
-      <div className="meta">
-        <b>{a.id}</b>
-        {a.cvss != null && <span>CVSS {a.cvss}</span>}
-        {a.epss != null && a.epss >= 0.01 && <span>EPSS {(a.epss * 100).toFixed(a.epss < 0.1 ? 1 : 0)}%</span>}
-        <span>
-          disclosed <RelTime iso={a.published} />
+    <ol className="flow" style={{ listStyle: "none", padding: 0 }}>
+      {flow.steps.map((s, i) => (
+        <li key={i} className={`fs${BAD.has(iconName(s.icon)) ? " bad" : ""}`}>
+          <span className="bub">
+            <Icon name={s.icon} size={22} />
+          </span>
+          <div className="n">STEP {i + 1}</div>
+          <div className="lbl">{s.label}</div>
+          {s.note && <div className="note">{s.note}</div>}
+        </li>
+      ))}
+      {flow.outcome && (
+        <li className="fs end">
+          <span className="bub">
+            <Icon name="alert" size={22} />
+          </span>
+          <div className="n">RESULT</div>
+          <div className="lbl">{flow.outcome}</div>
+        </li>
+      )}
+    </ol>
+  );
+}
+
+export function EntryCard({ a, variant = "normal" }: { a: Entry; variant?: "lead" | "normal" | "compact" }) {
+  const compact = variant === "compact" || (!a.plain && !a.flow);
+  return (
+    <Link href={`/v/${encodeURIComponent(a.id)}`} className={`card sev-${a.severity}${compact ? " compact" : ""}${variant === "lead" ? " lead" : ""}`}>
+      <div className="eyebrow">
+        {a.severity !== "unknown" && <span className="sev">{SEV_WORD[a.severity]}</span>}
+        <span>{KIND_WORD[a.kind]}</span>
+        <span className="mono">{a.id.startsWith("ZR-") ? a.aliases.find((x) => !x.startsWith("ZR-")) || "" : a.id}</span>
+        {a.eco.length > 0 && <span>{a.eco.join(" · ")}</span>}
+        <span className="when">
+          <RelTime iso={a.first_seen || a.published} />
         </span>
-        {eco.length > 0 && <span>{eco.join(" · ")}</span>}
-        {a.sources.length > 1 && <span>{a.sources.length} sources</span>}
       </div>
-      <h2>{a.title}</h2>
-      {a.summary && <p>{a.summary.length > 260 ? `${a.summary.slice(0, 257)}…` : a.summary}</p>}
-      {!a.summary && names.length > 0 && <p className="mono">{names.slice(0, 6).join(", ")}</p>}
-      <Badges a={a} />
+      <h3>{a.title}</h3>
+      {!compact && a.plain && <p className="plain">{a.plain}</p>}
+      {!compact && a.flow && <MiniFlow flow={a.flow} />}
+      {compact && a.names.length > 0 && a.kind !== "breach" && <div className="names">{a.names.join(", ")}</div>}
+      <Chips a={a} />
     </Link>
   );
 }

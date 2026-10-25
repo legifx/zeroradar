@@ -9,18 +9,27 @@ Not relevant: opinion pieces, product marketing, funding news, generic tips, con
 If it matches one of the KNOWN ENTRIES (same vulnerability or same incident), return its id in match_id.
 Schema: {"relevant":bool,"match_id":string|null,"kind":"vuln"|"breach"|"incident"|"malware","severity":"critical"|"high"|"medium"|"low"|"unknown","title":string (max 90 chars, neutral, names product + problem),"cves":[string],"exploited":"yes"|"reported"|"no-known"|"unknown"}`;
 
-const ENRICH_SYSTEM = `You write short, precise security briefings for developers. Answer ONLY with JSON.
-Use ONLY facts from the provided material. If something is not stated, use null or "unknown" — never guess versions, numbers or exploitation status.
+const ENRICH_SYSTEM = `You write security briefings that a developer AND a less technical IT person can understand. Answer ONLY with JSON.
+Use ONLY facts from the provided material. If something is not stated, use null or "unknown" — never guess versions, numbers, exploitation or fixes.
+Newer sources override older ones: if a later source announces a fix or patched version, the fix is available.
 Schema: {
- "title": string (max 90 chars, product + problem, no hype),
- "summary": string (1-2 sentences: what is affected and what the flaw/incident is),
- "why": string (1-2 sentences: concrete impact, e.g. unauthenticated RCE, data exposed, who is at risk),
- "affected": string|null (products/versions affected, compact),
- "fixed": string|null (fixed versions or mitigation; null if no fix mentioned),
+ "title": string (max 80 chars, product + problem in plain words, no hype, no CVE id),
+ "plain": string (1-2 short sentences for non-experts: what can go wrong, avoid jargon or explain it in passing),
+ "summary": string (1-2 sentences, technical: what is affected and what the flaw/incident is),
+ "why": string (1-2 sentences: concrete impact and who is at risk),
+ "who": string (one sentence starting with "You are affected if" — concrete products, versions, configurations),
+ "affected": string|null (compact list of affected products/versions),
+ "fixed": string|null (fixed versions or official mitigation; null if none mentioned),
  "fix_status": "available"|"partial"|"none"|"unknown",
  "exploited": "yes"|"reported"|"no-known"|"unknown",
  "exploited_note": string|null (who reports exploitation, if stated),
- "action": string (one imperative sentence: what to do now)
+ "steps": [string] (2-4 short imperative steps, most important first, e.g. "Update PHP to 8.4.27 or later"),
+ "action": string (the single most important step, one sentence),
+ "flow": {
+   "steps": [{"icon": "attacker"|"internet"|"browser"|"user"|"email"|"package"|"ci"|"repo"|"app"|"server"|"database"|"cloud"|"device"|"network"|"key"|"data"|"malware",
+              "label": string (max 4 words), "note": string (max 10 words)}],
+   "outcome": string (max 8 words, the end result, e.g. "Attacker controls the server")
+ } (3-5 steps showing how the attack or incident unfolds, left to right; null if the material does not explain it)
 }`;
 
 /** fn über items mit begrenzter Parallelität; Ergebnisse in Eingangsreihenfolge. */
@@ -78,7 +87,7 @@ export async function findDuplicates(entries, log) {
 export const enrichHash = (e) =>
   crypto
     .createHash("sha1")
-    .update(JSON.stringify([e.sources.map((s) => s.url).sort(), e.exploited.status, e.products.length]))
+    .update(JSON.stringify([e.sources.map((s) => s.url).sort(), e.exploited.status, e.products.length, e.products.filter((p) => p.fixed).length, 2]))
     .digest("hex")
     .slice(0, 12);
 
@@ -91,11 +100,11 @@ export async function enrich(entry, log) {
     `ID: ${entry.id} (${entry.aliases.join(", ")})\nKind: ${entry.kind}\nSeverity: ${entry.severity}` +
     (entry.cvss ? ` (CVSS ${entry.cvss})` : "") +
     `\nExploitation (structured): ${entry.exploited.status}${entry.exploited.note ? ` - ${entry.exploited.note}` : ""}` +
-    `\nSources: ${entry.sources.map((s) => s.name).join(", ")}` +
+    `\nSources (oldest first): ${[...entry.sources].sort((a, b) => (a.at || "").localeCompare(b.at || "")).map((s) => `${s.name} [${s.trust}] ${s.at?.slice(0, 16) || ""}`).join("; ")}` +
     (products ? `\nPackages:\n${products}` : "") +
     `\n\nMaterial:\n${entry.text.slice(0, 6000)}`;
   try {
-    const r = await askJson(ENRICH_SYSTEM, material);
+    const r = await askJson(ENRICH_SYSTEM, material, { maxTokens: 2000 });
     return r && { ...r, model: MODEL, hash: enrichHash(entry) };
   } catch (err) {
     log(`enrich ${entry.id}: ${err.message}`);

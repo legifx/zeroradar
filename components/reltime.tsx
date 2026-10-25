@@ -18,7 +18,8 @@ export function RelTime({ iso }: { iso: string }) {
     const t = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(t);
   }, []);
-  const abs = new Date(iso).toISOString().replace("T", " ").slice(0, 16) + " UTC";
+  const d = new Date(iso);
+  const abs = Number.isNaN(+d) ? "" : d.toISOString().replace("T", " ").slice(0, 16) + " UTC";
   return (
     <time dateTime={iso} title={abs} suppressHydrationWarning>
       {now ? rel(iso, now) : abs}

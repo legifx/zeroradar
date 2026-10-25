@@ -22,7 +22,7 @@ export default function Integrate() {
       <pre>{`claude mcp add --transport http zeroradar ${SITE_URL}/api/mcp`}</pre>
       <p>Then just ask: “anything new on Zero Radar that affects this repo?”</p>
 
-      <h2>Claude Code skill</h2>
+      <h2 id="skill">Claude Code skill</h2>
       <p>Scans lockfiles (npm, pnpm, yarn, bun, composer, pip/poetry/uv, cargo, go, bundler), checks them against the radar and fixes what is affected.</p>
       <pre>{`git clone --depth 1 https://github.com/legifx/zeroradar /tmp/zeroradar
 cp -r /tmp/zeroradar/skill/zeroradar ~/.claude/skills/`}</pre>
@@ -33,6 +33,8 @@ node ~/.claude/skills/zeroradar/scripts/scan.mjs --latest   # new top threats si
       <h2>RSS</h2>
       <pre>{`${SITE_URL}/feed.xml                      # top threats
 ${SITE_URL}/feed.xml?view=exploited       # exploited in the wild
+${SITE_URL}/feed.xml?view=fixes           # a fix was released (one item per fix)
+${SITE_URL}/feed.xml?view=unpatched       # important, still no fix
 ${SITE_URL}/feed.xml?view=breaches        # data breaches & incidents
 ${SITE_URL}/feed.xml?view=all&eco=npm     # every npm vulnerability`}</pre>
 
@@ -41,15 +43,16 @@ ${SITE_URL}/feed.xml?view=all&eco=npm     # every npm vulnerability`}</pre>
 POST ${SITE_URL}/api/check
      {"packages":[{"ecosystem":"npm","name":"next","version":"16.2.9"}]}`}</pre>
       <p>
-        <code>view</code>: top · exploited · breaches · all · malware · everything. Only names and versions are sent to{" "}
+        <code>view</code>: top · exploited · unpatched · fixes · breaches · all · malware · everything. Each entry carries <code>exploited</code>, <code>fix</code> (with <code>since</code>) and <code>confidence</code>. Only names and versions are sent to{" "}
         <code>/api/check</code>; nothing is stored.
       </p>
 
       <h2>How fast is it?</h2>
       <p>
-        Sources are polled every 5 minutes; the site refreshes its data every minute. Every entry shows when it was
-        disclosed and when Zero Radar picked it up. Zero Radar only reports issues that are already public — it never
-        publishes undisclosed vulnerabilities.
+        The pipeline runs continuously and checks each source on its own schedule — the fastest every minute. When
+        something changes, the site is told right away and serves the new data within seconds. Every entry shows when it
+        was disclosed and when Zero Radar picked it up. Zero Radar only reports issues that are already public. Details:{" "}
+        <a href="/about">How it works</a>.
       </p>
     </main>
   );

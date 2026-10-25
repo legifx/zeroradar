@@ -1,4 +1,0 @@
-# Zero Radar — Crontab auf dem Homeserver (User "server"). Übernehmen mit:
-#   ssh server '(crontab -l | grep -v zeroradar; cat ~/zeroradar/ops/crontab.txt) | crontab -'
-*/5 * * * * /home/server/zeroradar/ops/cron.sh pipeline
-3-59/15 * * * * /home/server/zeroradar/ops/cron.sh watch

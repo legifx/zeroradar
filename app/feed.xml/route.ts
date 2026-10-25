@@ -1,17 +1,19 @@
-import { filterAdvisories, getAdvisories, SITE_URL } from "@/lib/data";
-
-export const revalidate = 60;
+import { filterEntries, getEntries, SITE_URL } from "@/lib/data";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 // /feed.xml            → Top
-// /feed.xml?view=exploited|breaches|all|malware, &eco=npm
+// /feed.xml?view=exploited|unpatched|fixes|breaches|all|malware, &eco=npm
+// view=fixes: ein Eintrag pro neu erschienenem Fix (eigene guid), damit Reader ihn als neu zeigen
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const view = url.searchParams.get("view") || "top";
+  const fixes = view === "fixes";
+  const when = (a: { first_seen: string | null; published: string; fix: { since: string | null } }) =>
+    fixes ? a.fix.since : a.first_seen || a.published;
   const eco = url.searchParams.get("eco") || undefined;
-  const items = filterAdvisories(await getAdvisories(), { view, ecosystem: eco })
-    .sort((a, b) => (b.first_seen || b.published).localeCompare(a.first_seen || a.published))
+  const items = filterEntries(await getEntries(), { view, ecosystem: eco })
+    .sort((a, b) => (when(b) || "").localeCompare(when(a) || ""))
     .slice(0, 100);
 
   const body = items
@@ -20,20 +22,19 @@ export async function GET(req: Request) {
         a.severity.toUpperCase(),
         a.exploited.status === "yes" ? "EXPLOITED" : a.exploited.status === "reported" ? "exploitation reported" : null,
         a.fix.status === "available" ? "fix available" : a.fix.status === "none" ? "NO FIX" : null,
+        a.confidence.publishers > 1 ? `${a.confidence.publishers} sources` : null,
       ].filter(Boolean);
       const desc = [
-        a.summary,
-        a.why && `Why it matters: ${a.why}`,
+        a.plain,
         a.fix.text && `Fix: ${a.fix.text}`,
-        a.action && `Action: ${a.action}`,
       ]
         .filter(Boolean)
         .join("\n\n");
       return `<item>
-<title>${esc(`[${flags.join(" · ")}] ${a.title}`)}</title>
+<title>${esc(`${fixes ? "FIX RELEASED · " : ""}[${flags.join(" · ")}] ${a.title}`)}</title>
 <link>${SITE_URL}/v/${encodeURIComponent(a.id)}</link>
-<guid isPermaLink="false">${esc(a.id)}</guid>
-<pubDate>${new Date(a.first_seen || a.published).toUTCString()}</pubDate>
+<guid isPermaLink="false">${esc(fixes ? `${a.id}#fix` : a.id)}</guid>
+<pubDate>${new Date(when(a) || a.published).toUTCString()}</pubDate>
 <category>${esc(a.kind)}</category>
 <description>${esc(desc || a.title)}</description>
 </item>`;
@@ -46,8 +47,8 @@ export async function GET(req: Request) {
 <title>Zero Radar${view !== "top" ? ` — ${esc(view)}` : ""}</title>
 <link>${SITE_URL}</link>
 <atom:link href="${esc(url.href)}" rel="self" type="application/rss+xml"/>
-<description>New critical vulnerabilities, exploited bugs, malicious packages and data breaches — checked every 5 minutes.</description>
-<ttl>5</ttl>
+<description>New critical vulnerabilities, exploited bugs, malicious packages and data breaches — updated continuously from official advisories, CERTs, researchers and press.</description>
+<ttl>2</ttl>
 ${body}
 </channel>
 </rss>`;

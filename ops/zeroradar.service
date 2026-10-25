@@ -1,0 +1,20 @@
+# systemd-User-Dienst auf dem Homeserver:
+#   cp ops/zeroradar.service ~/.config/systemd/user/ && systemctl --user daemon-reload
+#   systemctl --user enable --now zeroradar
+# Öffentlich nur lesend über Tailscale Funnel:
+#   tailscale funnel --bg --set-path /zeroradar 8793
+[Unit]
+Description=Zero Radar pipeline + read server
+After=network-online.target
+
+[Service]
+ExecStart=%h/zeroradar/ops/start.sh
+Restart=always
+RestartSec=20
+Nice=10
+IOSchedulingClass=idle
+MemoryMax=800M
+TimeoutStopSec=15
+
+[Install]
+WantedBy=default.target

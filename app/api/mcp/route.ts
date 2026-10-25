@@ -1,6 +1,6 @@
 // Remote-MCP-Server (Streamable HTTP, zustandslos, nur JSON-Antworten).
 // Einbinden: claude mcp add --transport http zeroradar https://zeroradar.vercel.app/api/mcp
-import { filterAdvisories, getAdvisories, getAdvisory, getMeta, SITE_URL, type Advisory } from "@/lib/data";
+import { filterEntries, getDetail, getEntries, getMeta, SITE_URL, type Detail, type Entry } from "@/lib/data";
 import { check } from "@/lib/check";
 
 const PROTOCOL = "2025-06-18";
@@ -9,14 +9,14 @@ const TOOLS = [
   {
     name: "latest_threats",
     description:
-      "New security threats from the Zero Radar feed (checked every 5 minutes): critical/exploited vulnerabilities, malicious packages, data breaches. Use at session start or before deploying to see what is new.",
+      "New security threats from the Zero Radar feed (updated continuously, usually within minutes of the first credible source): critical/exploited vulnerabilities, malicious packages, data breaches. Use at session start or before deploying to see what is new.",
     inputSchema: {
       type: "object",
       properties: {
         view: {
           type: "string",
-          enum: ["top", "exploited", "breaches", "all", "malware"],
-          description: "top = critical, exploited or widely relevant (default)",
+          enum: ["top", "exploited", "unpatched", "fixes", "breaches", "all", "malware"],
+          description: "top = critical, exploited or widely relevant (default); fixes = recently released fixes; unpatched = important entries without a fix",
         },
         since: { type: "string", description: "ISO timestamp; only entries found or updated after it" },
         ecosystem: { type: "string", description: "npm, pip, composer, go, rust, maven, nuget, rubygems, actions …" },
@@ -55,25 +55,37 @@ const TOOLS = [
   },
 ];
 
-const line = (a: Advisory) =>
-  `- ${a.id} [${a.severity}${a.exploited.status === "yes" ? ", EXPLOITED" : a.exploited.status === "reported" ? ", exploitation reported" : ""}${a.fix.status === "available" ? ", fix available" : a.fix.status === "none" ? ", NO FIX" : ""}] ${a.title}` +
-  (a.products.length ? `\n  packages: ${a.products.slice(0, 5).map((p) => `${p.ecosystem}/${p.name} ${p.vulnerable || ""}${p.fixed ? ` → fixed ${p.fixed}` : ""}`).join("; ")}` : "") +
-  (a.action ? `\n  action: ${a.action}` : "") +
+const flags = (a: Entry) =>
+  [
+    a.severity,
+    a.exploited.status === "yes" ? "EXPLOITED" : a.exploited.status === "reported" ? "exploitation reported" : "",
+    a.fix.status === "available" ? "fix available" : a.fix.status === "partial" ? "partial fix" : a.fix.status === "none" ? "NO FIX" : "",
+    `${a.confidence.level} (${a.confidence.publishers} source${a.confidence.publishers === 1 ? "" : "s"})`,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+const line = (a: Entry) =>
+  `- ${a.id} [${flags(a)}] ${a.title}` +
+  (a.plain ? `\n  ${a.plain}` : "") +
+  (a.fix.text ? `\n  fix: ${a.fix.text}` : "") +
   `\n  ${SITE_URL}/v/${encodeURIComponent(a.id)}`;
 
-function full(a: Advisory) {
+function full(a: Detail) {
   return [
     `${a.id} — ${a.title}`,
-    `kind: ${a.kind} · severity: ${a.severity}${a.cvss != null ? ` (CVSS ${a.cvss})` : ""}${a.epss != null ? ` · EPSS ${(a.epss * 100).toFixed(1)}%` : ""}`,
+    `kind: ${a.kind} · ${flags(a)}${a.cvss != null ? ` · CVSS ${a.cvss}` : ""}${a.epss != null ? ` · EPSS ${(a.epss * 100).toFixed(1)}%` : ""}`,
     `disclosed: ${a.published} · picked up: ${a.first_seen || "before launch"} · updated: ${a.updated}`,
     a.summary && `What: ${a.summary}`,
     a.why && `Why dangerous: ${a.why}`,
-    `Exploited: ${a.exploited.status}${a.exploited.note ? ` (${a.exploited.note})` : ""}`,
-    `Fix: ${a.fix.status}${a.fix.text ? ` — ${a.fix.text}` : ""}`,
-    a.action && `Action: ${a.action}`,
+    a.who && `Affected if: ${a.who}`,
+    a.flow && `Attack: ${a.flow.steps.map((s) => s.label).join(" → ")}${a.flow.outcome ? ` ⇒ ${a.flow.outcome}` : ""}`,
+    `Exploited: ${a.exploited.status}${a.exploit_claims.length ? ` (${a.exploit_claims.map((c) => `${c.name}: ${c.status}`).join("; ")})` : ""}`,
+    `Fix: ${a.fix.status}${a.fix.text ? ` — ${a.fix.text}` : ""}${a.fix.since ? ` (since ${a.fix.since})` : ""}`,
+    a.steps.length > 0 && `Steps:\n${a.steps.map((s, i) => `  ${i + 1}. ${s}`).join("\n")}`,
     a.products.length > 0 &&
-      `Packages:\n${a.products.map((p) => `  ${p.ecosystem}/${p.name}: vulnerable ${p.vulnerable || "?"}, fixed ${p.fixed || "—"}`).join("\n")}`,
-    `Sources:\n${a.sources.map((s) => `  ${s.name}: ${s.url}`).join("\n")}`,
+      `Packages:\n${a.products.map((p) => `  ${p.ecosystem || "?"}/${p.name}: vulnerable ${p.vulnerable || "?"}, fixed ${p.fixed || "—"}`).join("\n")}`,
+    `Sources:\n${a.sources.map((s) => `  [${s.trust}] ${s.name}: ${s.url}`).join("\n")}`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -81,8 +93,8 @@ function full(a: Advisory) {
 
 async function callTool(name: string, args: Record<string, unknown>) {
   if (name === "latest_threats") {
-    const [all, meta] = await Promise.all([getAdvisories(), getMeta()]);
-    const list = filterAdvisories(all, {
+    const [all, meta] = await Promise.all([getEntries(), getMeta()]);
+    const list = filterEntries(all, {
       view: (args.view as string) || "top",
       since: args.since as string | undefined,
       ecosystem: args.ecosystem as string | undefined,
@@ -93,7 +105,7 @@ async function callTool(name: string, args: Record<string, unknown>) {
     return `Zero Radar · last check ${meta.checked_at} · ${list.length} entries\n\n${list.map(line).join("\n") || "(nothing new)"}`;
   }
   if (name === "get_threat") {
-    const a = await getAdvisory(String(args.id || ""));
+    const a = await getDetail(String(args.id || ""));
     return a ? full(a) : `No entry ${args.id} on the radar (only recent threats are tracked).`;
   }
   if (name === "check_packages") {
@@ -105,7 +117,7 @@ async function callTool(name: string, args: Record<string, unknown>) {
       r.findings
         .map(
           (f) =>
-            `- ${f.package.ecosystem}/${f.package.name}@${f.package.version || "?"} → ${f.id} [${f.severity}${f.kind === "malware" ? ", MALICIOUS PACKAGE" : ""}${f.exploited === "yes" ? ", EXPLOITED" : ""}] ${f.title}\n  vulnerable ${f.vulnerable || "?"}, fixed ${f.fixed || "—"} (${f.certainty})${f.action ? `\n  action: ${f.action}` : ""}\n  ${SITE_URL}${f.url}`,
+            `- ${f.package.ecosystem}/${f.package.name}@${f.package.version || "?"} → ${f.id} [${f.severity}${f.kind === "malware" ? ", MALICIOUS PACKAGE" : ""}${f.exploited === "yes" ? ", EXPLOITED" : ""}] ${f.title}\n  vulnerable ${f.vulnerable || "?"}, fixed ${f.fixed || "—"} (${f.certainty})${f.fix ? `\n  fix: ${f.fix}` : ""}\n  ${SITE_URL}${f.url}`,
         )
         .join("\n")
     );
@@ -122,7 +134,7 @@ async function handle(msg: Rpc) {
       return ok({
         protocolVersion: (msg.params?.protocolVersion as string) || PROTOCOL,
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: "zeroradar", title: "Zero Radar", version: "0.1.0" },
+        serverInfo: { name: "zeroradar", title: "Zero Radar", version: "0.2.0" },
         instructions:
           "Zero Radar tracks new critical vulnerabilities, exploited bugs, malicious packages and data breaches (updated every 5 minutes). Call latest_threats to see what is new; call check_packages with the project's dependencies to find affected ones.",
       });

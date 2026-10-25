@@ -27,7 +27,9 @@ const home = (p) => p.replace(/^~/, os.homedir());
 const cfgFile = home(process.env.ZR_WATCH_CONFIG || "~/.config/zeroradar/server-watch.json");
 const cfg = JSON.parse(fs.readFileSync(cfgFile, "utf8"));
 const stateFile = home(`~/.local/state/zeroradar/notified-${cfg.host}.json`);
-const FEED = process.env.ZR_FEED || "https://raw.githubusercontent.com/legifx/zeroradar/data/advisories.json";
+// Daten: lokal vom Dauerdienst (ZR_FEED_DIR) oder über den öffentlichen Lese-Server (ZR_FEED_URL)
+const FEED_DIR = process.env.ZR_FEED_DIR;
+const FEED_URL = process.env.ZR_FEED_URL || "https://jlhome6353.tail8a7388.ts.net/zeroradar/v1";
 
 const ssh = (cmd) =>
   execFileSync("ssh", ["-o", "ConnectTimeout=10", "-o", "BatchMode=yes", cfg.host, cmd], {
@@ -71,7 +73,21 @@ for (const k of ["openssh", "openssl", "sudo", "glibc", "linux", "docker", "cont
   if (inv.packages.some((p) => p.ecosystem === "debian" && p.name.startsWith(k === "linux" ? "linux-image" : k))) inv.keywords.add(k);
 
 // ---------- Abgleich ----------
-const advisories = await (await fetch(FEED, { signal: AbortSignal.timeout(30000) })).json();
+const readFeed = async (name) =>
+  FEED_DIR
+    ? JSON.parse(fs.readFileSync(path.join(FEED_DIR, name), "utf8"))
+    : (await fetch(`${FEED_URL}/${name}`, { signal: AbortSignal.timeout(30000) })).json();
+// Index + Paketliste zu einer Liste mit Produkten zusammensetzen (Standardwerte des kompakten Index ergänzen)
+const [{ entries }, pk] = await Promise.all([readFeed("index.json"), readFeed("packages.json")]);
+const advisories = entries.map((a) => ({
+  exploited: { status: "unknown" },
+  fix: { status: "unknown", text: null },
+  names: [],
+  ...a,
+  products: [],
+}));
+const byId = new Map(advisories.map((a) => [a.id, a]));
+for (const [id, ecosystem, name, vulnerable, fixed] of pk.rows) byId.get(id)?.products.push({ ecosystem, name, vulnerable, fixed });
 const urgent = (a) => a.kind === "malware" || ["yes", "reported"].includes(a.exploited.status);
 // Telegram nur für Wichtiges: Schadpakete, ausgenutzte, kritische/hohe; der Rest als Zahl
 const allPkgHits = matchPackages(inv.packages.filter((p) => p.ecosystem !== "debian"), advisories);
@@ -83,7 +99,7 @@ const recentTop = advisories.filter(
 );
 const kwHits = [];
 for (const a of recentTop) {
-  const hay = `${a.title} ${a.affected || ""} ${a.products.map((p) => p.name).join(" ")}`.toLowerCase();
+  const hay = `${a.title} ${a.plain || ""} ${a.names.join(" ")}`.toLowerCase();
   for (const k of inv.keywords) {
     if (new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(hay)) {
       kwHits.push({ advisory: a, keyword: k });
