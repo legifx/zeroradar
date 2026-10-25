@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { Store, sevRank } from "./lib/store.mjs";
 import { ghsa, nvd, kev, epss, hibp } from "./sources/advisories.mjs";
 import { feeds, hackernews, cvesIn } from "./sources/signals.mjs";
-import { triage, enrich, enrichHash } from "./ai.mjs";
+import { triage, enrich, enrichHash, pool } from "./ai.mjs";
 import { spent, llmAvailable } from "./lib/llm.mjs";
 import { publishToBranch } from "./lib/publish.mjs";
 
@@ -33,6 +33,7 @@ const logLines = [];
 const log = (msg) => {
   const line = `${new Date().toISOString()} ${msg}`;
   logLines.push(line);
+  fs.appendFileSync(path.join(VAR, "pipeline.log"), line + "\n");
   if (process.stdout.isTTY || args.has("-v")) console.log(line);
 };
 
@@ -145,10 +146,10 @@ const enrichQueue = top
   .filter((e) => !e.ai || e.ai.hash !== enrichHash(e))
   .sort((a, b) => sevRank(b.severity) - sevRank(a.severity) || b.updated.localeCompare(a.updated))
   .slice(0, boot ? 80 : 25);
-for (const e of enrichQueue) {
+await pool(enrichQueue, 8, async (e) => {
   const r = await enrich(e, log);
   if (r) e.ai = r;
-}
+});
 
 // ---------- 4. veröffentlichen ----------
 store.prune(now);
@@ -237,4 +238,3 @@ log(
   `Lauf fertig: ${items.length} veröffentlicht (${meta.counts.top} top), ${created} neu, ` +
     `${toTriage.length} triagiert, ${enrichQueue.length} bewertet, LLM ${meta.llm_usd} USD`,
 );
-fs.appendFileSync(path.join(VAR, "pipeline.log"), logLines.join("\n") + "\n");

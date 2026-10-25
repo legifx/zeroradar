@@ -23,29 +23,39 @@ Schema: {
  "action": string (one imperative sentence: what to do now)
 }`;
 
+/** fn über items mit begrenzter Parallelität; Ergebnisse in Eingangsreihenfolge. */
+export async function pool(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
 export async function triage(items, recentEntries, log, cap) {
   if (!llmAvailable()) return items.map(() => null);
   const known = recentEntries
     .slice(0, 80)
     .map((e) => `${e.id} | ${e.ai?.title || e.title}`)
     .join("\n");
-  const out = [];
-  for (const [i, it] of items.entries()) {
-    if (i >= cap) { out.push(null); continue; }
+  return pool(items, 8, async (it, i) => {
+    if (i >= cap) return null;
     try {
-      out.push(
-        await askJson(
-          TRIAGE_SYSTEM,
-          `KNOWN ENTRIES:\n${known || "(none)"}\n\nITEM (${it.feedName}, ${it.published}):\nTitle: ${it.title}\nURL: ${it.url}\n${it.text.slice(0, 1800)}`,
-          { maxTokens: 300 },
-        ),
+      return await askJson(
+        TRIAGE_SYSTEM,
+        `KNOWN ENTRIES:\n${known || "(none)"}\n\nITEM (${it.feedName}, ${it.published}):\nTitle: ${it.title}\nURL: ${it.url}\n${it.text.slice(0, 1800)}`,
+        { maxTokens: 300 },
       );
     } catch (err) {
       log(`triage: ${err.message}`);
-      out.push(null);
+      return null;
     }
-  }
-  return out;
+  });
 }
 
 export const enrichHash = (e) =>
