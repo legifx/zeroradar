@@ -19,6 +19,8 @@ Daten auf Branch `data` (ADR 0001), KI über OpenRouter ZDR (ADR 0002).
 - Gemacht: Pipeline (GHSA, NVD, KEV, EPSS, HIBP, 22 Feeds, HN), KI-Triage + Briefings, Seite mit Feed/Detail/RSS/API/MCP,
   Skill mit Lockfile-Scanner, Server-Wächter für den VPS (Telegram, nur Vorschläge). Tests: `npm test`.
 - Fund beim ersten Scan: Next.js ≤ 16.4.0 kritische RCE (GHSA-673q-mjm6-r5xr) → hier auf 16.4.3 angehoben.
+- Homeserver: Klon ~/zeroradar, Stand var/store.json, Wächter-Konfiguration ~/.config/zeroradar/server-watch.json,
+  Cron-Vorlage ops/crontab.txt (Pipeline */5, Wächter */15, Telegram über ~/.hermes NebInfo-Bot).
 - Offen: eigene Domain, Exa als Zusatzquelle, Cluster gleicher Vorfälle ohne CVE verbessern, OSV-Ökosysteme.
 
 ### 2026-10-25 · angelegt
