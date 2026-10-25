@@ -11,7 +11,7 @@ export default function Integrate() {
     <main className="wrap detail doc">
       <h1>Get threats where you work</h1>
       <p>
-        Everything on the radar is available as RSS, JSON and a remote MCP server — so your feed reader, your CI or your
+        Everything on the radar is available as RSS, JSON and a remote MCP server, so your feed reader, your CI or your
         coding agent hears about a new critical bug minutes after it is disclosed. No account, no key.
       </p>
 
@@ -49,7 +49,7 @@ POST ${SITE_URL}/api/check
 
       <h2>How fast is it?</h2>
       <p>
-        The pipeline runs continuously and checks each source on its own schedule — the fastest every minute. When
+        The pipeline runs continuously and checks each source on its own schedule, the fastest every minute. When
         something changes, the site is told right away and serves the new data within seconds. Every entry shows when it
         was disclosed and when Zero Radar picked it up. Zero Radar only reports issues that are already public. Details:{" "}
         <a href="/about">How it works</a>.

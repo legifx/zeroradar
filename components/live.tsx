@@ -23,21 +23,21 @@ export function LiveBar({ initial }: { initial: M }) {
   const stale = Date.now() - Date.parse(m.checked_at) > 20 * 60e3;
   return (
     <div className="live" aria-live="polite">
+      <span className={`dot${stale ? " stale" : ""}`} />
       <span>
-        <span className={`dot${stale ? " stale" : ""}`} />
-        <b>{stale ? "Delayed" : "Live"}</b> · last check <RelTime iso={m.checked_at} />
+        {stale ? "delayed" : "live"} · checked <RelTime iso={m.checked_at} />
       </span>
       <span>
-        {m.sources.ok}/{m.sources.total} sources reachable
+        {m.sources.ok}/{m.sources.total} sources up
       </span>
       {m.data_changed_at && (
         <span>
-          last new information <RelTime iso={m.data_changed_at} />
+          last change <RelTime iso={m.data_changed_at} />
         </span>
       )}
       {newer && (
         <button type="button" onClick={() => router.refresh()}>
-          New updates — show
+          new entries, reload
         </button>
       )}
     </div>

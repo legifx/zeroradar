@@ -3,14 +3,12 @@ import { isFresh, type Entry, type Flow } from "@/lib/data";
 import { BAD, Icon, iconName } from "./icons";
 import { RelTime } from "./reltime";
 
-export function RadarLogo({ size = 24 }: { size?: number }) {
+export function RadarLogo({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
-      <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" strokeOpacity=".3" strokeWidth="2" />
-      <circle cx="16" cy="16" r="8" fill="none" stroke="currentColor" strokeOpacity=".5" strokeWidth="2" />
-      <path d="M16 16 28.1 9" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-      <circle cx="22" cy="7.5" r="2.6" fill="var(--crit)" />
-      <circle cx="16" cy="16" r="2.2" fill="currentColor" />
+      <circle cx="16" cy="16" r="13.5" fill="none" stroke="currentColor" strokeWidth="2.5" />
+      <path d="M16 16 26 8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square" />
+      <circle cx="22.5" cy="20.5" r="3" fill="var(--red)" />
     </svg>
   );
 }
@@ -22,139 +20,142 @@ export const SEV_WORD: Record<Entry["severity"], string> = {
   low: "Low",
   unknown: "Unrated",
 };
+const SEV_TAG: Record<Entry["severity"], string> = { critical: "CRIT", high: "HIGH", medium: "MED", low: "LOW", unknown: "" };
+const SEV_HELP: Record<Entry["severity"], string> = {
+  critical: "Critical: attackers can usually take over the affected system or data",
+  high: "High: serious damage possible, often needs one extra condition",
+  medium: "Medium: limited damage or hard to exploit",
+  low: "Low: minor impact",
+  unknown: "Not rated yet",
+};
 export const KIND_WORD: Record<Entry["kind"], string> = {
   vuln: "Vulnerability",
   breach: "Data breach",
   incident: "Security incident",
   malware: "Malicious package",
 };
+const KIND_TAG: Record<Entry["kind"], string> = { vuln: "", breach: "LEAK", incident: "INCIDENT", malware: "MALWARE" };
 
 export function confWord(c: Entry["confidence"]) {
   const n = c.publishers;
-  if (c.level === "confirmed") return n > 1 ? `Official · ${n} sources` : "Official source";
+  if (c.level === "confirmed") return n > 1 ? `official, ${n} sources` : "official source";
   if (c.level === "corroborated") return `${n} independent sources`;
-  if (c.level === "single") return "Single report";
-  return "Unverified";
+  if (c.level === "single") return "1 source, unconfirmed";
+  return "unverified";
 }
 
-export function Chips({ a, full }: { a: Entry; full?: boolean }) {
+export function SevTag({ a }: { a: Entry }) {
+  const tag = SEV_TAG[a.severity] || KIND_TAG[a.kind] || "NEW";
+  return (
+    <span className={`tag sev-${a.severity}`} title={SEV_TAG[a.severity] ? SEV_HELP[a.severity] : KIND_WORD[a.kind]}>
+      {tag}
+    </span>
+  );
+}
+
+// Nur kurze Versionsangaben ("16.4.1", "next 16.4.1, 15.5.9") direkt nennen; Sätze stehen im Tooltip
+const versionish = (s: string | null): s is string => !!s && s.length <= 36 && /\d+\.\d+/.test(s) && !/\b(update|apply|upgrade|install|released)\b/i.test(s);
+
+/** Statuszeile: ausgenutzt? Fix? Wie viele Quellen? Als Text, nicht als Pillen. */
+export function Status({ a, ids = true }: { a: Entry; ids?: boolean }) {
   const ex = a.exploited;
   const by = ex.by?.length ? ex.by.slice(0, 2).join(", ") : null;
-  const vulnish = a.kind === "vuln";
+  const vuln = a.kind === "vuln";
+  const cve = a.id.startsWith("ZR-") ? a.aliases.find((x) => !x.startsWith("ZR-")) : a.id;
   return (
-    <div className="chips">
-      {isFresh(a) && <span className="chip new">NEW</span>}
+    <div className="status">
+      {isFresh(a) && <span className="s-new">new</span>}
       {ex.status === "yes" && (
-        <span className="chip exp">
-          <Icon name="alert" size={14} />
-          <span>Exploited in the wild{by ? ` · ${by}` : ""}</span>
+        <span className="s-exp" title="Confirmed by an official source such as CISA or the vendor">
+          ▲ exploited{by ? ` (${by})` : ""}
         </span>
       )}
       {ex.status === "reported" && (
-        <span className="chip rep">
-          <Icon name="alert" size={14} />
-          <span>Attacks reported{by ? ` · ${by}` : ""}</span>
+        <span className="s-rep" title="Reported by researchers or press, not yet confirmed officially">
+          ▲ attacks reported{by ? ` (${by})` : ""}
         </span>
       )}
-      {vulnish && (a.fix.status === "available" || a.fix.status === "partial") && (
-        <span className="chip fix" title={a.fix.text || undefined}>
-          <Icon name="check" size={14} />
-          <span>
-            {a.fix.status === "partial" ? "Partial fix" : "Fix available"}
-            {a.fix.since && Date.now() - Date.parse(a.fix.since) < 3 * 864e5 ? (
-              <>
-                {" "}· out <RelTime iso={a.fix.since} />
-              </>
-            ) : full && a.fix.text ? (
-              ` · ${a.fix.text}`
-            ) : null}
-          </span>
+      {vuln && (a.fix.status === "available" || a.fix.status === "partial") && (
+        <span className="s-fix" title={a.fix.text || undefined}>
+          ✓ {a.fix.status === "partial" ? "partial fix" : versionish(a.fix.text) ? `fixed in ${a.fix.text}` : "fix available"}
+          {a.fix.since && Date.now() - Date.parse(a.fix.since) < 3 * 864e5 && (
+            <>
+              {" "}· out <RelTime iso={a.fix.since} />
+            </>
+          )}
         </span>
       )}
-      {vulnish && a.fix.status === "none" && (
-        <span className="chip nofix">
-          <Icon name="clock" size={14} />
-          <span>No fix yet</span>
-        </span>
-      )}
-      <span className="chip conf" title="How many independent publishers report this">
-        <Icon name={a.confidence.level === "confirmed" ? "shield" : "sources"} size={14} />
-        <span>{confWord(a.confidence)}</span>
+      {vuln && a.fix.status === "none" && <span className="s-nofix">✕ no fix yet</span>}
+      <span className="s-src" title="How many independent publishers report this">
+        {confWord(a.confidence)}
       </span>
+      {ids && cve && <span className="s-id">{cve}</span>}
+      {ids && a.eco.length > 0 && <span className="s-id">{a.eco.join(", ")}</span>}
     </div>
   );
 }
 
-/** Kleines Ablaufbild für Karten: Symbole mit Pfeilen, kurze Beschriftung, Ergebnis in Rot. */
+/** Ablauf als Zeile: Symbol + Stichwort, Pfeile dazwischen, Ergebnis in Rot. */
 export function MiniFlow({ flow }: { flow: Flow }) {
   const steps = flow.steps.slice(0, 4);
   return (
-    <div className="mini" role="img" aria-label={`How it works: ${steps.map((s) => s.label).join(", then ")}${flow.outcome ? `. Result: ${flow.outcome}` : ""}`}>
+    <ol className="mini" aria-label="How the attack works">
       {steps.map((s, i) => (
-        <div key={i} className={`st${BAD.has(iconName(s.icon)) ? " bad" : ""}`}>
-          <span className="bub">
-            <Icon name={s.icon} />
-          </span>
-          <span className="lbl">{s.label}</span>
-        </div>
+        <li key={i} className={BAD.has(iconName(s.icon)) ? "bad" : undefined}>
+          <Icon name={s.icon} size={15} />
+          {s.label}
+        </li>
       ))}
-      {flow.outcome && (
-        <div className="st end">
-          <span className="bub">
-            <Icon name="alert" />
-          </span>
-          <span className="lbl">{flow.outcome}</span>
-        </div>
-      )}
-    </div>
+      {flow.outcome && <li className="end">{flow.outcome}</li>}
+    </ol>
   );
 }
 
 /** Ausführliches Ablaufbild (Detailseite): waagrecht am Rechner, senkrecht am Handy. */
 export function FlowDiagram({ flow }: { flow: Flow }) {
   return (
-    <ol className="flow" style={{ listStyle: "none", padding: 0 }}>
+    <ol className="flow">
       {flow.steps.map((s, i) => (
-        <li key={i} className={`fs${BAD.has(iconName(s.icon)) ? " bad" : ""}`}>
-          <span className="bub">
+        <li key={i} className={BAD.has(iconName(s.icon)) ? "bad" : undefined}>
+          <span className="ic">
             <Icon name={s.icon} size={22} />
           </span>
-          <div className="n">STEP {i + 1}</div>
-          <div className="lbl">{s.label}</div>
-          {s.note && <div className="note">{s.note}</div>}
+          <span className="n">{i + 1}</span>
+          <b>{s.label}</b>
+          {s.note && <span className="note">{s.note}</span>}
         </li>
       ))}
       {flow.outcome && (
-        <li className="fs end">
-          <span className="bub">
+        <li className="end">
+          <span className="ic">
             <Icon name="alert" size={22} />
           </span>
-          <div className="n">RESULT</div>
-          <div className="lbl">{flow.outcome}</div>
+          <span className="n">result</span>
+          <b>{flow.outcome}</b>
         </li>
       )}
     </ol>
   );
 }
 
-export function EntryCard({ a, variant = "normal" }: { a: Entry; variant?: "lead" | "normal" | "compact" }) {
-  const compact = variant === "compact" || (!a.plain && !a.flow);
+const HM = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+
+export function EntryRow({ a, when, rich = true }: { a: Entry; when: string; rich?: boolean }) {
   return (
-    <Link href={`/v/${encodeURIComponent(a.id)}`} className={`card sev-${a.severity}${compact ? " compact" : ""}${variant === "lead" ? " lead" : ""}`}>
-      <div className="eyebrow">
-        {a.severity !== "unknown" && <span className="sev">{SEV_WORD[a.severity]}</span>}
-        <span>{KIND_WORD[a.kind]}</span>
-        <span className="mono">{a.id.startsWith("ZR-") ? a.aliases.find((x) => !x.startsWith("ZR-")) || "" : a.id}</span>
-        {a.eco.length > 0 && <span>{a.eco.join(" · ")}</span>}
-        <span className="when">
-          <RelTime iso={a.first_seen || a.published} />
-        </span>
+    <li className="row">
+      <time className="t" dateTime={when}>
+        {HM.format(new Date(when))}
+      </time>
+      <SevTag a={a} />
+      <div className="body">
+        <Link href={`/v/${encodeURIComponent(a.id)}`} className="title">
+          {a.title}
+        </Link>
+        {rich && a.plain && <p className="plain">{a.plain}</p>}
+        {rich && a.flow && <MiniFlow flow={a.flow} />}
+        {!rich && a.names.length > 0 && a.kind !== "breach" && <p className="names">{a.names.join(", ")}</p>}
+        <Status a={a} />
       </div>
-      <h3>{a.title}</h3>
-      {!compact && a.plain && <p className="plain">{a.plain}</p>}
-      {!compact && a.flow && <MiniFlow flow={a.flow} />}
-      {compact && a.names.length > 0 && a.kind !== "breach" && <div className="names">{a.names.join(", ")}</div>}
-      <Chips a={a} />
-    </Link>
+    </li>
   );
 }

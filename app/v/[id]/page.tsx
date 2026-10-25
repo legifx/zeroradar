@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDetail, type Detail, type Source } from "@/lib/data";
-import { Chips, FlowDiagram, KIND_WORD, SEV_WORD, confWord } from "@/components/ui";
+import { FlowDiagram, KIND_WORD, SEV_WORD, SevTag, Status, confWord } from "@/components/ui";
 import { Icon } from "@/components/icons";
 
 type Props = { params: Promise<{ id: string }> };
@@ -26,7 +26,7 @@ const TRUST: Record<Source["trust"], { title: string; help: string }> = {
   official: { title: "Official", help: "vendor, government CERT or advisory database" },
   research: { title: "Security researchers", help: "research teams and mailing lists" },
   press: { title: "Security press", help: "established security newsrooms" },
-  community: { title: "Community", help: "discussion sites — treat with care" },
+  community: { title: "Community", help: "discussion sites, treat with care" },
 };
 
 function Verdict({ a }: { a: Detail }) {
@@ -36,7 +36,7 @@ function Verdict({ a }: { a: Detail }) {
     ex.status === "yes"
       ? { a: "Yes", c: "bad", x: `Confirmed by ${ex.by?.join(", ") || firstClaim?.name || "an official source"}${ex.since ? ` · ${fmt(ex.since).slice(0, 11)}` : ""}` }
       : ex.status === "reported"
-        ? { a: "Reported", c: "warn", x: `By ${ex.by?.join(", ") || firstClaim?.name || "a source"} — not officially confirmed yet` }
+        ? { a: "Reported", c: "warn", x: `By ${ex.by?.join(", ") || firstClaim?.name || "a source"} , not officially confirmed yet` }
         : ex.status === "no-known"
           ? { a: "Not known", c: "", x: "No attacks reported so far" }
           : { a: "Unclear", c: "", x: "No reports either way yet" };
@@ -54,7 +54,7 @@ function Verdict({ a }: { a: Detail }) {
     <div className="verdict">
       <div>
         <div className="q">Severity</div>
-        <div className={`a sev-${a.severity}`} style={{ color: "var(--sevc, var(--ink))" }}>
+        <div className={`a sevword sev-${a.severity}`}>
           {SEV_WORD[a.severity]}
         </div>
         <div className="x">{a.cvss != null ? `CVSS ${a.cvss} of 10` : KIND_WORD[a.kind]}</div>
@@ -86,7 +86,7 @@ function Verdict({ a }: { a: Detail }) {
             ? "Backed by an official source"
             : a.confidence.level === "corroborated"
               ? "Several independent publishers agree"
-              : "Only one publisher so far — may change"}
+              : "Only one publisher so far, details may change"}
         </div>
       </div>
     </div>
@@ -105,19 +105,19 @@ export default async function Page({ params }: Props) {
     .filter((g) => g.items.length);
 
   return (
-    <main className={`wrap detail sev-${a.severity}`}>
+    <main className="wrap detail">
       <Link href="/" className="back">
-        ← All threats
+        ← feed
       </Link>
       <div className="d-eyebrow">
-        <span className="sev">{SEV_WORD[a.severity]}</span>
+        <SevTag a={a} />
         <span>{KIND_WORD[a.kind]}</span>
         {cve && <span className="mono">{cve}</span>}
         <span>updated {fmt(a.updated)}</span>
       </div>
       <h1>{a.title}</h1>
       {(a.plain || a.summary) && <p className="lede">{a.plain || a.summary}</p>}
-      <Chips a={a} full />
+      <Status a={a} ids={false} />
       <Verdict a={a} />
 
       {a.flow && (
@@ -196,8 +196,8 @@ export default async function Page({ params }: Props) {
                 {e.text}
                 {e.source && (
                   <>
-                    {" "}
-                    — <a href={e.source.url} rel="noopener nofollow" target="_blank">{e.source.name}</a>
+                    {" · "}
+                    <a href={e.source.url} rel="noopener nofollow" target="_blank">{e.source.name}</a>
                   </>
                 )}
               </div>
@@ -208,7 +208,7 @@ export default async function Page({ params }: Props) {
 
       <section className="sec">
         <h2>
-          Sources <small>{a.sources.length} reports, oldest first</small>
+          Sources <small>{a.sources.length} {a.sources.length === 1 ? "report" : "reports"}, oldest first</small>
         </h2>
         <div className="srcgrp">
           {groups.map((g) => (
@@ -263,7 +263,7 @@ export default async function Page({ params }: Props) {
       <p className="aimark">
         {a.ai
           ? `The plain-language parts and the attack diagram were written by an AI model${a.model ? ` (${a.model})` : ""} from the sources above. Facts like versions, exploitation and dates come from the sources themselves.`
-          : "This entry has not been explained yet — the text comes directly from the source."}{" "}
+          : "This entry has not been explained yet. The text comes straight from the source."}{" "}
         <Link href="/about">How Zero Radar works</Link>
       </p>
     </main>

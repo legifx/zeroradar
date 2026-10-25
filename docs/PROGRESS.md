@@ -17,6 +17,12 @@ Zero Radar: frischeste Sicherheitslücken & Leaks in Echtzeit – Website, RSS, 
 
 ## Log
 
+### 2026-10-25 · Design ohne KI-Optik
+- legi: "weniger AI Slop". Kopfbereich, Kacheln, Seitenleiste und Pillen-Chips entfernt; Feed als Ticker
+  (UTC-Zeit, Kürzel CRIT/HIGH/LEAK, Haarlinien), Status als Text (▲ exploited, ✓ fixed), IBM Plex statt
+  Serif+Inter, Ablauf als Textzeile mit Symbolen, Abschnittsköpfe in Mono. Texte ohne Gedankenstriche.
+- Datenlader: ein Wiederholversuch (Kaltstart über Funnel), Meta alle 30 s.
+
 ### 2026-10-25 · v0.2 Dauerdienst + Redesign
 - Pipeline läuft dauerhaft statt Cron: jede Quelle im eigenen Takt (GHSA 60 s … EPSS 6 h), bedingte Anfragen,
   KI-Tagesbudget. Keine Commits mehr, Branch `data` und Cron entfallen (ADR 0003).

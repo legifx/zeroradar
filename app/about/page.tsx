@@ -21,7 +21,7 @@ const STRUCTURED: { name: string; trust: Trust; every: number; what: string }[] 
 const TRUST_TEXT: Record<Trust, [string, string]> = {
   official: ["Official", "Vendors, government CERTs and advisory databases. Their word on exploitation and fixes counts as confirmed."],
   research: ["Researchers", "Security research teams and disclosure mailing lists. Often first, usually right."],
-  press: ["Press", "Established security newsrooms. Good for context, counted as a report — not as confirmation."],
+  press: ["Press", "Established security newsrooms. Good for context, counted as a report, not as confirmation."],
   community: ["Community", "Discussion sites. Used as an early hint only; never enough on its own to say “exploited”."],
 };
 
@@ -41,12 +41,12 @@ export default function About() {
       <h2>From first report to entry</h2>
       <ol>
         <li>
-          <b>Watch.</b> Every source is polled on its own interval — the fastest every minute. Unchanged feeds cost almost
+          <b>Watch.</b> Every source is polled on its own interval, the fastest every minute. Unchanged feeds cost almost
           nothing, so we can ask often.
         </li>
         <li>
           <b>Merge.</b> Reports that name the same CVE are joined. Reports without a CVE are compared by an AI model and
-          merged when they describe the same incident — two different CVEs are never merged.
+          merged when they describe the same incident. Two different CVEs are never merged.
         </li>
         <li>
           <b>Explain.</b> For important entries an AI model writes the plain-language text, the attack diagram and the
@@ -146,7 +146,7 @@ export default function About() {
       <h2>What Zero Radar does not do</h2>
       <ul>
         <li>It only reports issues that are already public. It never publishes undisclosed vulnerabilities or exploit code.</li>
-        <li>AI text can be wrong. Every entry links its sources — check the official advisory before you change production systems.</li>
+        <li>AI text can be wrong. Every entry links its sources. Check the official advisory before you change production systems.</li>
         <li>Entries older than about 30 days drop off. For history use NVD or the GitHub Advisory Database.</li>
       </ul>
       <p>
