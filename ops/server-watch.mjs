@@ -72,8 +72,15 @@ for (const k of ["openssh", "openssl", "sudo", "glibc", "linux", "docker", "cont
 
 // ---------- Abgleich ----------
 const advisories = await (await fetch(FEED, { signal: AbortSignal.timeout(30000) })).json();
-const pkgHits = matchPackages(inv.packages.filter((p) => p.ecosystem !== "debian"), advisories);
-const recentTop = advisories.filter((a) => a.top && a.kind === "vuln" && Date.now() - Date.parse(a.updated) < 14 * 864e5);
+const urgent = (a) => a.kind === "malware" || ["yes", "reported"].includes(a.exploited.status);
+// Telegram nur für Wichtiges: Schadpakete, ausgenutzte, kritische/hohe; der Rest als Zahl
+const allPkgHits = matchPackages(inv.packages.filter((p) => p.ecosystem !== "debian"), advisories);
+const pkgHits = allPkgHits.filter((h) => urgent(h.advisory) || ["critical", "high"].includes(h.advisory.severity));
+const minorHits = allPkgHits.length - pkgHits.length;
+// Stichwort-Treffer sind unscharf: nur bei ausgenutzten oder breit gemeldeten Lücken (Score ≥ 7)
+const recentTop = advisories.filter(
+  (a) => a.top && a.kind === "vuln" && Date.now() - Date.parse(a.updated) < 14 * 864e5 && (urgent(a) || (a.score ?? 0) >= 7),
+);
 const kwHits = [];
 for (const a of recentTop) {
   const hay = `${a.title} ${a.affected || ""} ${a.products.map((p) => p.name).join(" ")}`.toLowerCase();
@@ -125,6 +132,7 @@ if (freshApt)
     `\n<b>Debian-Sicherheitsupdates offen (${inv.apt.length})</b>: ${esc(inv.apt.slice(0, 15).join(", "))}${inv.apt.length > 15 ? " …" : ""}\n` +
       `Fix-Vorschlag: <code>ssh ${esc(cfg.host)} 'apt-get update &amp;&amp; apt-get install --only-upgrade ${esc(inv.apt.join(" "))}'</code>`,
   );
+if (minorHits) lines.push(`\n(+${minorHits} weitere Low/Medium-Treffer in Lockfiles — Details: zeroradar-Skill im Repo laufen lassen)`);
 lines.push("\nNichts wurde automatisch geändert. Antworte deinem Agenten mit OK, um die Fixes einzuspielen.");
 const text = lines.join("\n").slice(0, 4000);
 
