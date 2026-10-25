@@ -8,8 +8,17 @@ export const llmAvailable = () => Boolean(process.env.ZERORADAR_OPENROUTER_KEY);
 let spentUsd = 0;
 export const spent = () => spentUsd;
 
-export async function askJson(system, user, { maxTokens = 700 } = {}) {
+export async function askJson(system, user, { maxTokens = 1500, effort = "none" } = {}) {
   if (!llmAvailable()) return null;
+  try {
+    return await call(system, user, maxTokens, effort);
+  } catch (err) {
+    if (!err.retry) throw err;
+    return call(system, user, maxTokens * 2, effort); // abgeschnitten: einmal mit mehr Platz
+  }
+}
+
+async function call(system, user, maxTokens, effort) {
   const res = await fetch(API, {
     method: "POST",
     headers: {
@@ -22,6 +31,8 @@ export async function askJson(system, user, { maxTokens = 700 } = {}) {
       model: MODEL,
       max_tokens: maxTokens,
       temperature: 0.1,
+      // Haiku denkt sonst adaptiv und verbraucht das Token-Budget, bevor JSON kommt
+      reasoning: { effort },
       provider: { zdr: true, data_collection: "deny" },
       usage: { include: true },
       messages: [
@@ -36,6 +47,12 @@ export async function askJson(system, user, { maxTokens = 700 } = {}) {
   spentUsd += j.usage?.cost || 0;
   const text = j.choices?.[0]?.message?.content || "";
   const m = text.match(/\{[\s\S]*\}/);
-  if (!m) throw new Error(`kein JSON in Antwort: ${text.slice(0, 120)}`);
-  return JSON.parse(m[0]);
+  try {
+    if (!m) throw new Error("kein JSON");
+    return JSON.parse(m[0]);
+  } catch {
+    const err = new Error(`kein JSON (${j.choices?.[0]?.finish_reason}, ${text.length} Zeichen): ${text.slice(0, 80)}`);
+    err.retry = true;
+    throw err;
+  }
 }

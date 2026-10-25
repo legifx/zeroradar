@@ -17,13 +17,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const view = VIEWS.some((v) => v.id === sp.view) ? sp.view! : "top";
   const [all, meta] = await Promise.all([getAdvisories(), getMeta()]);
   const counts = Object.fromEntries(VIEWS.map((v) => [v.id, filterAdvisories(all, { view: v.id }).length]));
-  const list = filterAdvisories(all, { view, search: sp.q, ecosystem: sp.eco });
+  const list = filterAdvisories(all, { view, search: sp.q, ecosystem: sp.eco, sort: sp.sort });
   const page = Math.max(1, Number(sp.page) || 1);
   const shown = list.slice(0, page * PAGE);
   const stale = Date.now() - Date.parse(meta.checked_at) > 20 * 60e3;
   const failing = Object.entries(meta.sources).filter(([, s]) => !s.ok).map(([k]) => k);
   const href = (p: Record<string, string | undefined>) => {
-    const q = new URLSearchParams(Object.entries({ view, q: sp.q, eco: sp.eco, ...p }).filter(([, v]) => v) as [string, string][]);
+    const q = new URLSearchParams(Object.entries({ view, q: sp.q, eco: sp.eco, sort: sp.sort, ...p }).filter(([, v]) => v) as [string, string][]);
     if (q.get("view") === "top") q.delete("view");
     const s = q.toString();
     return s ? `/?${s}` : "/";
@@ -60,6 +60,18 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </form>
       </div>
 
+      {view === "top" && (
+        <div className="sortline">
+          Sort:{" "}
+          <Link href={href({ sort: undefined, page: undefined })} className={sp.sort !== "new" ? "on" : ""}>
+            most relevant
+          </Link>{" "}
+          ·{" "}
+          <Link href={href({ sort: "new", page: undefined })} className={sp.sort === "new" ? "on" : ""}>
+            newest
+          </Link>
+        </div>
+      )}
       <div className="list">
         {shown.map((a) => (
           <AdvisoryCard key={a.id} a={a} />

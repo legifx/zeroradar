@@ -9,6 +9,7 @@ export type Advisory = {
   aliases: string[];
   kind: "vuln" | "breach" | "incident" | "malware";
   top: boolean;
+  score?: number;
   title: string;
   severity: "critical" | "high" | "medium" | "low" | "unknown";
   cvss: number | null;
@@ -23,7 +24,7 @@ export type Advisory = {
   action: string | null;
   exploited: { status: "yes" | "reported" | "no-known" | "unknown"; note?: string | null; since?: string };
   products: Product[];
-  sources: { name: string; url: string; at?: string }[];
+  sources: { name: string; url: string; at?: string; title?: string }[];
   hn_points: number;
   ai: boolean;
 };
@@ -37,17 +38,27 @@ export type Meta = {
 const REPO = process.env.ZR_REPO || "legifx/zeroradar";
 export const REVALIDATE = 60;
 
+/** Aktueller Commit des Branches "data" — per git info/refs: ungecacht, ohne Token, ohne API-Limit. */
+async function dataSha(): Promise<string | null> {
+  try {
+    const res = await fetch(`https://github.com/${REPO}.git/info/refs?service=git-upload-pack`, {
+      next: { revalidate: REVALIDATE / 2 },
+    });
+    const m = (await res.text()).match(/([0-9a-f]{40}) refs\/heads\/data/);
+    return m ? m[1] : null;
+  } catch {
+    return null;
+  }
+}
+
 async function load<T>(file: string): Promise<T> {
   if (process.env.ZR_LOCAL_DATA) {
     return JSON.parse(await fs.readFile(path.join(process.cwd(), "data", file), "utf8"));
   }
-  const token = process.env.GITHUB_TOKEN;
-  const url = token
-    ? `https://api.github.com/repos/${REPO}/contents/${file}?ref=data`
-    : `https://raw.githubusercontent.com/${REPO}/data/${file}`;
-  const res = await fetch(url, {
-    headers: token ? { authorization: `Bearer ${token}`, accept: "application/vnd.github.raw+json" } : {},
-    next: { revalidate: REVALIDATE, tags: ["zr-data"] },
+  const sha = await dataSha();
+  // Commit-URLs sind unveränderlich → dauerhaft cachebar; ohne SHA Fallback auf den Branch (≤ 5 min alt)
+  const res = await fetch(`https://raw.githubusercontent.com/${REPO}/${sha || "data"}/${file}`, {
+    ...(sha ? { cache: "force-cache" as const } : { next: { revalidate: REVALIDATE } }),
   });
   if (!res.ok) throw new Error(`data ${file}: HTTP ${res.status}`);
   return res.json();
@@ -68,7 +79,7 @@ export const SYNAGY_URL = "https://synagy.org/?utm_source=zeroradar&utm_medium=f
 /** Filter, die Website, RSS, API und MCP gemeinsam nutzen. */
 export function filterAdvisories(
   list: Advisory[],
-  q: { view?: string; since?: string; ecosystem?: string; search?: string; limit?: number },
+  q: { view?: string; since?: string; ecosystem?: string; search?: string; limit?: number; sort?: string },
 ) {
   let out = list;
   switch (q.view) {
@@ -102,5 +113,12 @@ export function filterAdvisories(
       ),
     );
   }
+  if ((q.view || "top") === "top" && q.sort !== "new") out = [...out].sort((a, b) => hotness(b) - hotness(a));
   return q.limit ? out.slice(0, q.limit) : out;
+}
+
+/** Relevanz mit Zeitverfall: Wichtiges bleibt ein paar Tage oben, Neues steigt schnell auf. */
+export function hotness(a: Advisory, now = Date.now()) {
+  const ageH = Math.max(0, (now - Date.parse(a.published)) / 3600e3);
+  return (a.score ?? 0) / (1 + ageH / 48);
 }

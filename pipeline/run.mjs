@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Ein Pipeline-Durchlauf: sammeln → zusammenführen → Triage → Bewertung → veröffentlichen.
-// Aufruf per Cron alle 5 Minuten. Flags: --no-publish (nur lokal), --no-ai.
+// Aufruf per Cron alle 5 Minuten. Flags: --no-publish (nur lokal), --no-ai, --dedupe (Duplikat-Schritt erzwingen).
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { Store, sevRank } from "./lib/store.mjs";
 import { ghsa, nvd, kev, epss, hibp } from "./sources/advisories.mjs";
 import { feeds, hackernews, cvesIn } from "./sources/signals.mjs";
-import { triage, enrich, enrichHash, pool } from "./ai.mjs";
+import { triage, enrich, enrichHash, pool, findDuplicates } from "./ai.mjs";
 import { spent, llmAvailable } from "./lib/llm.mjs";
 import { publishToBranch } from "./lib/publish.mjs";
 
@@ -81,7 +81,7 @@ const asObs = (s, id, extra = {}) => ({
   exploited: EXPLOIT_WORDS.test(`${s.title} ${s.text}`)
     ? { status: "reported", since: s.published, note: `Reported by ${s.feedName}` }
     : undefined,
-  source: { name: s.feedName, url: s.url, at: s.published, tier: s.tier },
+  source: { name: s.feedName, url: s.url, at: s.published, tier: s.tier, title: s.title.slice(0, 140) },
   ...extra,
 });
 
@@ -129,7 +129,28 @@ toTriage.forEach((s, i) => {
   }
 });
 
-// ---------- 3. Priorität, EPSS, Bewertung ----------
+// ---------- 3. Duplikate zusammenführen (nur wenn neue Signal-Einträge da sind) ----------
+const touchedSignals = store.entries.some((e) => e.first_seen === now && (e.id.startsWith("ZR-") || e.sources.some((s) => s.tier)));
+let merged = 0;
+if (touchedSignals || args.has("--dedupe")) {
+  const pool7 = store.entries
+    .filter((e) => e.updated >= ago(7) && e.kind !== "malware" && (e.id.startsWith("ZR-") || e.sources.some((s) => s.tier) || e.exploited.status === "yes"))
+    .sort((a, b) => b.updated.localeCompare(a.updated))
+    .slice(0, 250);
+  const rank = (e) => (e.id.startsWith("CVE-") ? 0 : e.id.startsWith("GHSA-") ? 1 : 2) * 1000 - e.sources.length;
+  for (const group of await findDuplicates(pool7, log)) {
+    const entries = [...new Set(group.map((id) => store.find([id])).filter(Boolean))];
+    // nie zwei verschiedene CVEs verschmelzen
+    if (entries.filter((e) => e.id.startsWith("CVE-")).length > 1) continue;
+    entries.sort((a, b) => rank(a) - rank(b));
+    for (const drop of entries.slice(1)) {
+      store.absorb(entries[0], drop, now);
+      merged++;
+    }
+  }
+}
+
+// ---------- 4. Priorität, EPSS, Bewertung ----------
 const isTop = (e) =>
   e.kind === "breach" || e.kind === "incident" ||
   (e.kind !== "malware" &&
@@ -138,22 +159,38 @@ const isTop = (e) =>
       (e.severity === "high" && (e.products.some((p) => p.ecosystem && p.ecosystem !== "service") || e.sources.length > 1))));
 
 const top = store.entries.filter(isTop);
+// Reihenfolge der Bewertung: ausgenutzt > Vorfälle/Leaks > Rest
+const urgency = (e) => (["yes", "reported"].includes(e.exploited.status) ? 2 : 0) + (e.kind !== "vuln" ? 1 : 0);
 const cveTop = top.filter((e) => /^CVE-/.test(e.id)).map((e) => e.id);
 const scores = await epss(cveTop.slice(0, 400));
 for (const [id, p] of Object.entries(scores)) if (store.data.entries[id]) store.data.entries[id].epss = p;
 
 const enrichQueue = top
   .filter((e) => !e.ai || e.ai.hash !== enrichHash(e))
-  .sort((a, b) => sevRank(b.severity) - sevRank(a.severity) || b.updated.localeCompare(a.updated))
-  .slice(0, boot ? 80 : 25);
+  .sort(
+    (a, b) =>
+      urgency(b) - urgency(a) || sevRank(b.severity) - sevRank(a.severity) || b.updated.localeCompare(a.updated),
+  )
+  .slice(0, boot ? 80 : 30);
 await pool(enrichQueue, 8, async (e) => {
   const r = await enrich(e, log);
   if (r) e.ai = r;
 });
 
-// ---------- 4. veröffentlichen ----------
+// ---------- 5. veröffentlichen ----------
 store.prune(now);
 store.save();
+
+// Relevanz für die Top-Ansicht (die Seite verrechnet sie noch mit dem Alter)
+const SEV_POINTS = { critical: 3, high: 2, medium: 1 };
+const score = (e) =>
+  (SEV_POINTS[e.severity] || 0) +
+  ({ yes: 4, reported: 3 }[e.exploited.status] || 0) +
+  Math.min(new Set(e.sources.map((s) => s.name)).size - 1, 4) +
+  (e.sources.some((s) => s.tier) ? 2 : 0) +
+  (e.hn_points >= 200 ? 2 : e.hn_points >= 50 ? 1 : 0) +
+  (e.products.some((p) => p.ecosystem && p.ecosystem !== "service") ? 1 : 0) +
+  (e.kind === "breach" || e.kind === "incident" ? 1 : 0);
 
 const pub = (e) => {
   const ai = e.ai || {};
@@ -166,6 +203,7 @@ const pub = (e) => {
     aliases: e.aliases,
     kind: e.kind,
     top: isTop(e),
+    score: score(e),
     title: ai.title || e.title,
     severity: e.severity,
     cvss: e.cvss,
@@ -180,7 +218,7 @@ const pub = (e) => {
     action: ai.action || null,
     exploited,
     products: e.products.slice(0, 25),
-    sources: e.sources.slice(0, 12).map(({ name, url, at }) => ({ name, url, at })),
+    sources: e.sources.slice(0, 12).map(({ name, url, at, title }) => ({ name, url, at, title })),
     hn_points: e.hn_points || 0,
     ai: Boolean(e.ai),
   };
@@ -236,5 +274,5 @@ if (!args.has("--no-publish") && (prev.hash !== hash || heartbeatDue)) {
 
 log(
   `Lauf fertig: ${items.length} veröffentlicht (${meta.counts.top} top), ${created} neu, ` +
-    `${toTriage.length} triagiert, ${enrichQueue.length} bewertet, LLM ${meta.llm_usd} USD`,
+    `${toTriage.length} triagiert, ${merged} zusammengeführt, ${enrichQueue.length} bewertet, LLM ${meta.llm_usd} USD`,
 );

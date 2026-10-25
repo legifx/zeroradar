@@ -71,6 +71,9 @@ code, .mono { font-family: var(--mono); }
 @media (max-width: 640px) { .search { margin-left: 0; width: 100%; } .search input { width: 100%; } .nav a.hide-sm { display: none; } }
 
 /* Liste */
+.sortline { font: 12px var(--mono); color: var(--faint); margin: -4px 0 10px; }
+.sortline a { color: var(--muted); }
+.sortline a.on { color: var(--accent); }
 .list { display: flex; flex-direction: column; gap: 10px; padding-bottom: 40px; }
 .item { display: block; position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px 14px 20px; overflow: hidden; }
 .item::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--sev, var(--low)); }

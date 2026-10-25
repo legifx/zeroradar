@@ -49,13 +49,30 @@ export async function triage(items, recentEntries, log, cap) {
       return await askJson(
         TRIAGE_SYSTEM,
         `KNOWN ENTRIES:\n${known || "(none)"}\n\nITEM (${it.feedName}, ${it.published}):\nTitle: ${it.title}\nURL: ${it.url}\n${it.text.slice(0, 1800)}`,
-        { maxTokens: 300 },
+        { maxTokens: 600 },
       );
     } catch (err) {
       log(`triage: ${err.message}`);
       return null;
     }
   });
+}
+
+const DEDUPE_SYSTEM = `You group security entries that describe the SAME vulnerability or the SAME incident (e.g. several news articles about one supply-chain attack, or a news item about exploitation of a CVE that is listed separately).
+Different CVEs in the same product are NOT duplicates unless one article covers them as one issue AND one of the entries has no CVE id. Be conservative: only group when clearly the same.
+Answer ONLY with JSON: {"groups":[["ID1","ID2"],...]} — empty list if none.`;
+
+/** Liefert Gruppen von IDs, die denselben Vorfall beschreiben. */
+export async function findDuplicates(entries, log) {
+  if (!llmAvailable() || entries.length < 2) return [];
+  const list = entries.map((e) => `${e.id} | ${e.kind} | ${(e.ai?.title || e.title || "").slice(0, 140)}`).join("\n");
+  try {
+    const r = await askJson(DEDUPE_SYSTEM, `ENTRIES:\n${list}`, { maxTokens: 6000, effort: "low" });
+    return (r?.groups || []).filter((g) => Array.isArray(g) && g.length > 1);
+  } catch (err) {
+    log(`dedupe: ${err.message}`);
+    return [];
+  }
 }
 
 export const enrichHash = (e) =>

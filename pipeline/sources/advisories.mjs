@@ -51,7 +51,9 @@ export async function nvd({ since, apiKey }) {
   const end = new Date();
   const headers = apiKey ? { apiKey } : {};
   const out = [];
-  for (let offset = 0; offset < 2000; offset += 500) {
+  // NVD sortiert aufsteigend und liefert max. 2000 pro Seite: alles durchblättern (Erstlauf ~7 Tage)
+  for (let offset = 0; offset < 6000; offset += 500) {
+    if (offset && !apiKey) await new Promise((r) => setTimeout(r, 6500)); // 5 Anfragen / 30 s ohne Key
     const url =
       `https://services.nvd.nist.gov/rest/json/cves/2.0?pubStartDate=${fmt(start)}&pubEndDate=${fmt(end)}` +
       `&resultsPerPage=500&startIndex=${offset}`;

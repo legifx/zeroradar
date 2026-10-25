@@ -23,7 +23,8 @@ const KIND_LABEL: Record<Advisory["kind"], string> = {
 };
 
 export function Badges({ a }: { a: Advisory }) {
-  const fresh = a.first_seen && Date.now() - Date.parse(a.first_seen) < 6 * 3600e3;
+  const fresh =
+    a.first_seen && Date.now() - Date.parse(a.first_seen) < 6 * 3600e3 && Date.now() - Date.parse(a.published) < 48 * 3600e3;
   return (
     <div className="badges">
       <span className="badge sev">{a.severity === "unknown" ? "unrated" : a.severity}</span>

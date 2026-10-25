@@ -90,6 +90,33 @@ export class Store {
     return { entry: e, created, changed };
   }
 
+  /** Eintrag `drop` in `keep` aufgehen lassen (Duplikat desselben Vorfalls). */
+  absorb(keep, drop, now) {
+    if (keep === drop) return;
+    for (const src of drop.sources) {
+      this.merge(
+        {
+          id: keep.id,
+          aliases: [drop.id, ...drop.aliases],
+          severity: drop.severity,
+          cvss: drop.cvss,
+          published: drop.published,
+          exploited: drop.exploited,
+          products: drop.products,
+          source: src,
+          text: "",
+        },
+        now,
+      );
+    }
+    if (drop.text && !keep.text.includes(drop.text.slice(0, 200))) keep.text = `${keep.text}\n\n${drop.text}`.slice(-8000);
+    if (drop.first_seen < keep.first_seen) keep.first_seen = drop.first_seen;
+    keep.hn_points = Math.max(keep.hn_points || 0, drop.hn_points || 0);
+    if (keep.kind === "vuln" && drop.kind !== "vuln" && keep.id.startsWith("ZR-")) keep.kind = drop.kind;
+    delete this.data.entries[drop.id];
+    for (const a of [drop.id, ...drop.aliases]) this.alias.set(a.toUpperCase(), keep.id);
+  }
+
   #rename(e, newId) {
     if (this.data.entries[newId] && this.data.entries[newId] !== e) return; // existiert schon separat
     delete this.data.entries[e.id];

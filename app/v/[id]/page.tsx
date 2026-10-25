@@ -147,6 +147,7 @@ export default async function Detail({ params }: Props) {
               <a href={s.url} target="_blank" rel="noopener nofollow">
                 {s.name}
               </a>
+              {s.title && <span> — {s.title}</span>}
               {s.at && (
                 <span className="note">
                   {" "}
