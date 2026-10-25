@@ -1,0 +1,7 @@
+{
+  "git": { "deploymentEnabled": { "data": false } },
+  "headers": [
+    { "source": "/feed.xml", "headers": [{ "key": "access-control-allow-origin", "value": "*" }] },
+    { "source": "/api/(.*)", "headers": [{ "key": "access-control-allow-origin", "value": "*" }] }
+  ]
+}
