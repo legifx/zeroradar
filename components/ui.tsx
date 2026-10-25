@@ -20,7 +20,7 @@ export const SEV_WORD: Record<Entry["severity"], string> = {
   low: "Low",
   unknown: "Unrated",
 };
-const SEV_TAG: Record<Entry["severity"], string> = { critical: "CRIT", high: "HIGH", medium: "MED", low: "LOW", unknown: "" };
+const SEV_TAG: Record<Entry["severity"], string> = { critical: "Critical", high: "High", medium: "Medium", low: "Low", unknown: "" };
 const SEV_HELP: Record<Entry["severity"], string> = {
   critical: "Critical: attackers can usually take over the affected system or data",
   high: "High: serious damage possible, often needs one extra condition",
@@ -34,18 +34,18 @@ export const KIND_WORD: Record<Entry["kind"], string> = {
   incident: "Security incident",
   malware: "Malicious package",
 };
-const KIND_TAG: Record<Entry["kind"], string> = { vuln: "", breach: "LEAK", incident: "INCIDENT", malware: "MALWARE" };
+const KIND_TAG: Record<Entry["kind"], string> = { vuln: "", breach: "Leak", incident: "Incident", malware: "Malware" };
 
 export function confWord(c: Entry["confidence"]) {
   const n = c.publishers;
-  if (c.level === "confirmed") return n > 1 ? `official, ${n} sources` : "official source";
+  if (c.level === "confirmed") return n > 1 ? `Official, ${n} sources` : "Official source";
   if (c.level === "corroborated") return `${n} independent sources`;
   if (c.level === "single") return "1 source, unconfirmed";
-  return "unverified";
+  return "Unverified";
 }
 
 export function SevTag({ a }: { a: Entry }) {
-  const tag = SEV_TAG[a.severity] || KIND_TAG[a.kind] || "NEW";
+  const tag = SEV_TAG[a.severity] || KIND_TAG[a.kind] || "Unrated";
   return (
     <span className={`tag sev-${a.severity}`} title={SEV_TAG[a.severity] ? SEV_HELP[a.severity] : KIND_WORD[a.kind]}>
       {tag}
@@ -64,20 +64,20 @@ export function Status({ a, ids = true }: { a: Entry; ids?: boolean }) {
   const cve = a.id.startsWith("ZR-") ? a.aliases.find((x) => !x.startsWith("ZR-")) : a.id;
   return (
     <div className="status">
-      {isFresh(a) && <span className="s-new">new</span>}
+      {isFresh(a) && <span className="s-new">New</span>}
       {ex.status === "yes" && (
         <span className="s-exp" title="Confirmed by an official source such as CISA or the vendor">
-          ▲ exploited{by ? ` (${by})` : ""}
+          Exploited{by ? ` (${by})` : ""}
         </span>
       )}
       {ex.status === "reported" && (
         <span className="s-rep" title="Reported by researchers or press, not yet confirmed officially">
-          ▲ attacks reported{by ? ` (${by})` : ""}
+          Attacks reported{by ? ` (${by})` : ""}
         </span>
       )}
       {vuln && (a.fix.status === "available" || a.fix.status === "partial") && (
         <span className="s-fix" title={a.fix.text || undefined}>
-          ✓ {a.fix.status === "partial" ? "partial fix" : versionish(a.fix.text) ? `fixed in ${a.fix.text}` : "fix available"}
+          {a.fix.status === "partial" ? "Partial fix" : versionish(a.fix.text) ? `Fixed in ${a.fix.text}` : "Fix available"}
           {a.fix.since && Date.now() - Date.parse(a.fix.since) < 3 * 864e5 && (
             <>
               {" "}· out <RelTime iso={a.fix.since} />
@@ -85,7 +85,7 @@ export function Status({ a, ids = true }: { a: Entry; ids?: boolean }) {
           )}
         </span>
       )}
-      {vuln && a.fix.status === "none" && <span className="s-nofix">✕ no fix yet</span>}
+      {vuln && a.fix.status === "none" && <span className="s-nofix">No fix yet</span>}
       <span className="s-src" title="How many independent publishers report this">
         {confWord(a.confidence)}
       </span>
@@ -100,6 +100,7 @@ export function MiniFlow({ flow }: { flow: Flow }) {
   const steps = flow.steps.slice(0, 4);
   return (
     <ol className="mini" aria-label="How the attack works">
+      <li className="how">How it works:</li>
       {steps.map((s, i) => (
         <li key={i} className={BAD.has(iconName(s.icon)) ? "bad" : undefined}>
           <Icon name={s.icon} size={15} />
@@ -130,7 +131,7 @@ export function FlowDiagram({ flow }: { flow: Flow }) {
           <span className="ic">
             <Icon name="alert" size={22} />
           </span>
-          <span className="n">result</span>
+          <span className="n">Result</span>
           <b>{flow.outcome}</b>
         </li>
       )}

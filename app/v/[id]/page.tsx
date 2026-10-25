@@ -3,7 +3,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDetail, type Detail, type Source } from "@/lib/data";
 import { FlowDiagram, KIND_WORD, SEV_WORD, SevTag, Status, confWord } from "@/components/ui";
-import { Icon } from "@/components/icons";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -36,7 +35,7 @@ function Verdict({ a }: { a: Detail }) {
     ex.status === "yes"
       ? { a: "Yes", c: "bad", x: `Confirmed by ${ex.by?.join(", ") || firstClaim?.name || "an official source"}${ex.since ? ` · ${fmt(ex.since).slice(0, 11)}` : ""}` }
       : ex.status === "reported"
-        ? { a: "Reported", c: "warn", x: `By ${ex.by?.join(", ") || firstClaim?.name || "a source"} , not officially confirmed yet` }
+        ? { a: "Reported", c: "warn", x: `By ${ex.by?.join(", ") || firstClaim?.name || "a source"}, not officially confirmed yet` }
         : ex.status === "no-known"
           ? { a: "Not known", c: "", x: "No attacks reported so far" }
           : { a: "Unclear", c: "", x: "No reports either way yet" };
@@ -51,45 +50,47 @@ function Verdict({ a }: { a: Detail }) {
           ? { q: "Fix available?", a: "Not yet", c: "bad", x: "Use the workaround below until a patch ships" }
           : { q: "Fix available?", a: "Unclear", c: "", x: "No fixed version published in the sources yet" };
   return (
-    <div className="verdict">
-      <div>
-        <div className="q">Severity</div>
-        <div className={`a sevword sev-${a.severity}`}>
-          {SEV_WORD[a.severity]}
-        </div>
-        <div className="x">{a.cvss != null ? `CVSS ${a.cvss} of 10` : KIND_WORD[a.kind]}</div>
-      </div>
-      <div>
-        <div className="q">Being exploited?</div>
-        <div className={`a ${exploit.c}`}>
-          {exploit.c === "bad" && <Icon name="alert" size={17} />}
-          {exploit.a}
-        </div>
-        <div className="x">{exploit.x}</div>
-      </div>
-      <div>
-        <div className="q">{fix.q}</div>
-        <div className={`a ${fix.c}`}>
-          {fix.c === "good" && <Icon name="check" size={17} />}
-          {fix.a}
-        </div>
-        <div className="x">
-          {fix.x}
-          {fixable && a.fix.since ? ` · since ${fmt(a.fix.since).slice(0, 11)}` : ""}
-        </div>
-      </div>
-      <div>
-        <div className="q">How sure is this?</div>
-        <div className="a">{confWord(a.confidence)}</div>
-        <div className="x">
-          {a.confidence.level === "confirmed"
-            ? "Backed by an official source"
-            : a.confidence.level === "corroborated"
-              ? "Several independent publishers agree"
-              : "Only one publisher so far, details may change"}
-        </div>
-      </div>
-    </div>
+    <table className="verdict">
+      <tbody>
+        <tr>
+          <th scope="row">Severity</th>
+          <td>
+            <b className={`sevword sev-${a.severity}`}>{SEV_WORD[a.severity]}</b>
+            <span className="x">{a.cvss != null ? `CVSS ${a.cvss} of 10` : KIND_WORD[a.kind]}</span>
+          </td>
+        </tr>
+        <tr>
+          <th scope="row">Being exploited?</th>
+          <td>
+            <b className={exploit.c}>{exploit.a}</b>
+            <span className="x">{exploit.x}</span>
+          </td>
+        </tr>
+        <tr>
+          <th scope="row">{fix.q}</th>
+          <td>
+            <b className={fix.c}>{fix.a}</b>
+            <span className="x">
+              {fix.x}
+              {fixable && a.fix.since ? ` · since ${fmt(a.fix.since).slice(0, 11)}` : ""}
+            </span>
+          </td>
+        </tr>
+        <tr>
+          <th scope="row">How sure is this?</th>
+          <td>
+            <b>{confWord(a.confidence)}</b>
+            <span className="x">
+              {a.confidence.level === "confirmed"
+                ? "Backed by an official source"
+                : a.confidence.level === "corroborated"
+                  ? "Several independent publishers agree"
+                  : "Only one publisher so far, details may change"}
+            </span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   );
 }
 

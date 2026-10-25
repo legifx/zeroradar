@@ -25,19 +25,19 @@ export function LiveBar({ initial }: { initial: M }) {
     <div className="live" aria-live="polite">
       <span className={`dot${stale ? " stale" : ""}`} />
       <span>
-        {stale ? "delayed" : "live"} · checked <RelTime iso={m.checked_at} />
+        {stale ? "Delayed" : "Live"}, last checked <RelTime iso={m.checked_at} />
       </span>
       <span>
-        {m.sources.ok}/{m.sources.total} sources up
+        {m.sources.ok} of {m.sources.total} sources reachable
       </span>
       {m.data_changed_at && (
         <span>
-          last change <RelTime iso={m.data_changed_at} />
+          last new information <RelTime iso={m.data_changed_at} />
         </span>
       )}
       {newer && (
         <button type="button" onClick={() => router.refresh()}>
-          new entries, reload
+          New entries. Reload
         </button>
       )}
     </div>

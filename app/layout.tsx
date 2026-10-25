@@ -1,12 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
-import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import { Atkinson_Hyperlegible } from "next/font/google";
 import { SITE_URL, SYNAGY_URL } from "@/lib/data";
 import { RadarLogo } from "@/components/ui";
 import "./globals.css";
 
-const sans = IBM_Plex_Sans({ subsets: ["latin"], variable: "--font-sans", weight: ["400", "500", "600"], display: "swap" });
-const mono = IBM_Plex_Mono({ subsets: ["latin"], variable: "--font-mono", weight: ["400", "500"], display: "swap" });
+// Atkinson Hyperlegible: vom Braille Institute für Lesbarkeit entworfen; Mono nur für IDs (Systemschrift)
+const sans = Atkinson_Hyperlegible({ subsets: ["latin"], variable: "--font-sans", weight: ["400", "700"], display: "swap" });
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -19,20 +19,20 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fbfbfa" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f0f0f" },
+    { media: "(prefers-color-scheme: light)", color: "#ffd21f" },
+    { media: "(prefers-color-scheme: dark)", color: "#ffd21f" },
   ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+    <html lang="en" className={sans.variable}>
       <body>
         <header className="top">
           <div className="wrap">
             <Link href="/" className="brand">
               <RadarLogo />
-              zero radar
+              Zero Radar
             </Link>
             <nav className="nav" aria-label="Main">
               <Link href="/" className="hide-xs">

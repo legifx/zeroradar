@@ -70,7 +70,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
       <nav className="views" aria-label="Views">
         {VIEWS.map((v) => (
           <Link key={v.key} href={href(v.key)} aria-current={v.key === view.key ? "page" : undefined}>
-            {v.label} <span className="c">{count[v.key]}</span>
+            {v.label} <span className="c">({count[v.key]})</span>
           </Link>
         ))}
       </nav>
@@ -84,8 +84,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
       </form>
       <p className="legend">
         {q ? `${list.length} results for “${q}”. ` : `${view.help} `}
-        <span className="s-exp">▲</span> exploited: attackers already use it. <span className="s-fix">✓</span> fixed: a patched
-        version exists. Sources: independent publishers reporting it. <Link href="/about">How we rate</Link>
+        <span className="s-exp">Exploited</span> means attackers already use it, <span className="s-fix">Fixed</span> means a
+        patched version exists. <Link href="/about">How we rate entries</Link>
       </p>
 
       {lead.length > 0 && (

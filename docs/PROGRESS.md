@@ -17,6 +17,12 @@ Zero Radar: frischeste Sicherheitslücken & Leaks in Echtzeit – Website, RSS, 
 
 ## Log
 
+### 2026-10-25 · Bulletin-Optik + Bio-Seite
+- legi: Farben/Schriften wirkten weiter KI-generiert. Neu: gelbe Warnleiste, weißes Papier, eine Schrift
+  (Atkinson Hyperlegible, Braille Institute), echte Linkfarben (blau/lila besucht), Schweregrad ausgeschrieben
+  im gefüllten Feld, Überschriften im Satzbau, Urteil als Tabelle. Keine Mono-Großbuchstaben mehr.
+- Zero Radar steht auf der Bio-Seite (bio-legifx.vercel.app, Platz 2 nach Synagy): Blob-Stand + data/defaults.ts im Repo legifx/bio.
+
 ### 2026-10-25 · Design ohne KI-Optik
 - legi: "weniger AI Slop". Kopfbereich, Kacheln, Seitenleiste und Pillen-Chips entfernt; Feed als Ticker
   (UTC-Zeit, Kürzel CRIT/HIGH/LEAK, Haarlinien), Status als Text (▲ exploited, ✓ fixed), IBM Plex statt
