@@ -65,7 +65,7 @@ export const TAG = "zr";
 
 const fileId = (id: string) => id.replace(/[^A-Za-z0-9._-]/g, "_");
 
-async function load<T>(rel: string): Promise<T | null> {
+async function load<T>(rel: string, revalidate = 300): Promise<T | null> {
   if (process.env.ZR_LOCAL_DATA) {
     try {
       return JSON.parse(await fs.readFile(path.join(process.cwd(), "var/public/v1", rel), "utf8"));
@@ -73,10 +73,18 @@ async function load<T>(rel: string): Promise<T | null> {
       return null;
     }
   }
-  const res = await fetch(`${DATA_URL}/${rel}`, { next: { revalidate: 300, tags: [TAG] } });
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`data ${rel}: HTTP ${res.status}`);
-  return res.json();
+  // Ein Wiederholversuch: der erste Abruf über den Funnel scheitert gelegentlich (Kaltstart)
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch(`${DATA_URL}/${rel}`, { next: { revalidate, tags: [TAG] }, signal: AbortSignal.timeout(15000) });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`data ${rel}: HTTP ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      if (attempt >= 1) throw err;
+      await new Promise((r) => setTimeout(r, 800));
+    }
+  }
 }
 
 /** Kompakten Index (Standardwerte weggelassen) wieder vollständig machen. */
@@ -110,7 +118,7 @@ export async function getEntries(): Promise<Entry[]> {
 }
 
 export async function getMeta(): Promise<Meta> {
-  return (await load<Meta>("meta.json")) || { checked_at: new Date(0).toISOString(), data_changed_at: "", counts: { total: 0, top: 0 }, sources: {} };
+  return (await load<Meta>("meta.json", 30)) || { checked_at: new Date(0).toISOString(), data_changed_at: "", counts: { total: 0, top: 0 }, sources: {} };
 }
 
 export async function getDetail(id: string): Promise<Detail | null> {
