@@ -21,6 +21,7 @@ Daten auf Branch `data` (ADR 0001), KI über OpenRouter ZDR (ADR 0002).
 - Fund beim ersten Scan: Next.js ≤ 16.4.0 kritische RCE (GHSA-673q-mjm6-r5xr) → hier auf 16.4.3 angehoben.
 - Homeserver: Klon ~/zeroradar, Stand var/store.json, Wächter-Konfiguration ~/.config/zeroradar/server-watch.json,
   Cron-Vorlage ops/crontab.txt (Pipeline */5, Wächter */15, Telegram über ~/.hermes NebInfo-Bot).
+- Live seit 2026-10-25: https://zeroradar.vercel.app (Vercel-Projekt zeroradar, git-verknüpft; Token auf dem Server ~/.vercel-token). Cron aktiv.
 - Offen: eigene Domain, Exa als Zusatzquelle, Cluster gleicher Vorfälle ohne CVE verbessern, OSV-Ökosysteme.
 
 ### 2026-10-25 · angelegt
