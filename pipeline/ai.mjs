@@ -58,7 +58,7 @@ export async function triage(items, recentEntries, log, cap) {
       return await askJson(
         TRIAGE_SYSTEM,
         `KNOWN ENTRIES:\n${known || "(none)"}\n\nITEM (${it.feedName}, ${it.published}):\nTitle: ${it.title}\nURL: ${it.url}\n${it.text.slice(0, 1800)}`,
-        { maxTokens: 600 },
+        { maxTokens: 600, tag: "triage" },
       );
     } catch (err) {
       log(`triage: ${err.message}`);
@@ -76,7 +76,7 @@ export async function findDuplicates(entries, log) {
   if (!llmAvailable() || entries.length < 2) return [];
   const list = entries.map((e) => `${e.id} | ${e.kind} | ${(e.ai?.title || e.title || "").slice(0, 140)}`).join("\n");
   try {
-    const r = await askJson(DEDUPE_SYSTEM, `ENTRIES:\n${list}`, { maxTokens: 6000, effort: "low" });
+    const r = await askJson(DEDUPE_SYSTEM, `ENTRIES:\n${list}`, { maxTokens: 6000, effort: "low", tag: "dedupe" });
     return (r?.groups || []).filter((g) => Array.isArray(g) && g.length > 1);
   } catch (err) {
     log(`dedupe: ${err.message}`);
@@ -91,6 +91,9 @@ export const enrichHash = (e) =>
     .digest("hex")
     .slice(0, 12);
 
+/** Strukturierter Stand (Ausnutzung, Pakete, Fixes); ändert er sich, wird sofort neu bewertet. */
+export const enrichState = (e) => JSON.stringify([e.exploited.status, e.products.length, e.products.filter((p) => p.fixed).length]);
+
 export async function enrich(entry, log) {
   const products = entry.products
     .slice(0, 12)
@@ -104,8 +107,8 @@ export async function enrich(entry, log) {
     (products ? `\nPackages:\n${products}` : "") +
     `\n\nMaterial:\n${entry.text.slice(0, 6000)}`;
   try {
-    const r = await askJson(ENRICH_SYSTEM, material, { maxTokens: 2000 });
-    return r && { ...r, model: MODEL, hash: enrichHash(entry) };
+    const r = await askJson(ENRICH_SYSTEM, material, { maxTokens: 2000, tag: "enrich" });
+    return r && { ...r, model: MODEL, hash: enrichHash(entry), state: enrichState(entry), at: new Date().toISOString() };
   } catch (err) {
     log(`enrich ${entry.id}: ${err.message}`);
     return null;

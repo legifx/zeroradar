@@ -6,19 +6,22 @@ export const MODEL = process.env.ZERORADAR_MODEL || "anthropic/claude-haiku-5.5"
 export const llmAvailable = () => Boolean(process.env.ZERORADAR_OPENROUTER_KEY);
 
 let spentUsd = 0;
+const spentByTag = {};
 export const spent = () => spentUsd;
+/** Kosten je Schritt (triage, enrich, dedupe) seit Prozessstart. */
+export const spentBy = () => ({ ...spentByTag });
 
-export async function askJson(system, user, { maxTokens = 1500, effort = "none" } = {}) {
+export async function askJson(system, user, { maxTokens = 1500, effort = "none", tag = "other" } = {}) {
   if (!llmAvailable()) return null;
   try {
-    return await call(system, user, maxTokens, effort);
+    return await call(system, user, maxTokens, effort, tag);
   } catch (err) {
     if (!err.retry) throw err;
-    return call(system, user, maxTokens * 2, effort); // abgeschnitten: einmal mit mehr Platz
+    return call(system, user, maxTokens * 2, effort, tag); // abgeschnitten: einmal mit mehr Platz
   }
 }
 
-async function call(system, user, maxTokens, effort) {
+async function call(system, user, maxTokens, effort, tag) {
   const res = await fetch(API, {
     method: "POST",
     headers: {
@@ -45,6 +48,7 @@ async function call(system, user, maxTokens, effort) {
   if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const j = await res.json();
   spentUsd += j.usage?.cost || 0;
+  spentByTag[tag] = (spentByTag[tag] || 0) + (j.usage?.cost || 0);
   const text = j.choices?.[0]?.message?.content || "";
   const m = text.match(/\{[\s\S]*\}/);
   try {

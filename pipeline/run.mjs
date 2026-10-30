@@ -16,7 +16,7 @@ const engine = new Engine({
   log,
   githubToken: process.env.GITHUB_TOKEN,
   nvdKey: process.env.NVD_API_KEY,
-  dailyLlmUsd: Number(process.env.ZR_LLM_DAILY_USD || 2),
+  dailyLlmUsd: Number(process.env.ZR_LLM_DAILY_USD || 0.2),
 });
 if (args.has("--dedupe")) engine.needDedupe = true;
 await engine.tick({ all: true });

@@ -23,6 +23,14 @@ Zero Radar: frischeste Sicherheitslücken & Leaks in Echtzeit – Website, RSS, 
   im gefüllten Feld, Überschriften im Satzbau, Urteil als Tabelle. Keine Mono-Großbuchstaben mehr.
 - Zero Radar steht auf der Bio-Seite (bio-legifx.vercel.app, Platz 2 nach Synagy): Blob-Stand + data/defaults.ts im Repo legifx/bio.
 
+### 2026-10-31 · KI-Kosten halbiert, Modell bleibt Haiku
+- legi: bis 0,25 USD/Tag über OpenRouter zu viel. Ursache war die Menge, nicht das Modell: 30.10. = 0,19 USD für
+  179 Bewertungen (nur 78 Einträge neu, der Rest Neubewertungen wegen jeder neuen Quelle), Triage und Dedupe alle 2 min.
+- Neu: Neubewertung nur sofort, wenn sich Ausnutzung/Pakete/Fixes ändern; neue Quellen allein frühestens 6 h nach
+  der letzten Bewertung (`ai.at`, `ai.state`). Dedupe höchstens alle 30 min. Tagesdeckel 2 → 0,20 USD.
+- Kosten je Schritt in `store.llm.by` (triage/enrich/dedupe), Tageszeile `KI-Kosten …` im pipeline.log.
+- Modellvergleich an echten Einträgen in ADR 0002 (Nachtrag): billigere Modelle sind teurer oder erfinden Fakten.
+
 ### 2026-10-25 · Design ohne KI-Optik
 - legi: "weniger AI Slop". Kopfbereich, Kacheln, Seitenleiste und Pillen-Chips entfernt; Feed als Ticker
   (UTC-Zeit, Kürzel CRIT/HIGH/LEAK, Haarlinien), Status als Text (▲ exploited, ✓ fixed), IBM Plex statt

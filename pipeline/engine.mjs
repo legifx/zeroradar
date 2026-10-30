@@ -5,16 +5,23 @@ import crypto from "node:crypto";
 import { Store, sevRank } from "./lib/store.mjs";
 import { ghsa, ghsaByCve, nvd, kev, epss, hibp, osvFixes } from "./sources/advisories.mjs";
 import { FEEDS, fetchFeed, hackernews, cvesIn } from "./sources/signals.mjs";
-import { triage, enrich, enrichHash, pool, findDuplicates } from "./ai.mjs";
-import { spent, llmAvailable } from "./lib/llm.mjs";
+import { triage, enrich, enrichHash, enrichState, pool, findDuplicates } from "./ai.mjs";
+import { spent, spentBy, llmAvailable } from "./lib/llm.mjs";
 import { Publisher } from "./lib/publish.mjs";
 import { isTop, urgency } from "./rules.mjs";
 
 const EXPLOIT_WORDS = /\b(actively exploited|exploited in the wild|in-the-wild exploitation|under active attack|being exploited|zero-day attacks?|exploitation (?:has been )?(?:observed|detected|confirmed))\b/i;
 const ago = (sec) => new Date(Date.now() - sec * 1000).toISOString();
 
+// KI-Kosten: Duplikatsuche höchstens alle 30 min; nur neue Quellen (ohne geänderten Ausnutzungs-/Fix-Stand)
+// lösen frühestens 6 h nach der letzten Bewertung eine neue aus.
+const DEDUPE_EVERY_MS = 30 * 60e3;
+const REENRICH_AFTER_SEC = 6 * 3600;
+const needsEnrich = (e) =>
+  !e.ai || (e.ai.hash !== enrichHash(e) && (e.ai.state !== enrichState(e) || !(e.ai.at > ago(REENRICH_AFTER_SEC))));
+
 export class Engine {
-  constructor({ storeFile, publicDir, log, githubToken, nvdKey, dailyLlmUsd = 2 }) {
+  constructor({ storeFile, publicDir, log, githubToken, nvdKey, dailyLlmUsd = 0.2 }) {
     this.store = new Store(storeFile);
     this.publisher = new Publisher(publicDir);
     this.log = log;
@@ -181,14 +188,14 @@ export class Engine {
   // ---------- Duplikate, Bewertung, Veröffentlichung ----------
   async #afterProcessing(now, { created = 0, enrichOnly = false } = {}) {
     let merged = 0;
-    if (this.needDedupe && Date.now() - this.lastDedupe > 120e3 && this.#llmOk()) {
+    if (this.needDedupe && Date.now() - this.lastDedupe > DEDUPE_EVERY_MS && this.#llmOk()) {
       this.needDedupe = false;
       this.lastDedupe = Date.now();
       merged = await this.dedupe(now);
     }
 
     const queue = this.store.entries
-      .filter((e) => isTop(e) && (!e.ai || e.ai.hash !== enrichHash(e)))
+      .filter((e) => isTop(e) && needsEnrich(e))
       .sort((a, b) => urgency(b) - urgency(a) || sevRank(b.severity) - sevRank(a.severity) || b.updated.localeCompare(a.updated))
       .slice(0, this.boot ? 120 : 15);
     let enriched = 0;
@@ -249,9 +256,16 @@ export class Engine {
   #trackSpend() {
     const day = new Date().toISOString().slice(0, 10);
     const l = (this.store.data.llm ||= { day, usd: 0 });
-    if (l.day !== day) Object.assign(l, { day, usd: 0 });
+    if (l.day !== day) {
+      this.log(`KI-Kosten ${l.day}: ${l.usd} USD ${JSON.stringify(l.by || {})}`);
+      Object.assign(l, { day, usd: 0, by: {} });
+    }
     const s = spent();
     l.usd = +(l.usd + s - (this.spentSeen || 0)).toFixed(4);
     this.spentSeen = s;
+    const by = spentBy();
+    l.by ||= {};
+    for (const [k, v] of Object.entries(by)) l.by[k] = +((l.by[k] || 0) + v - (this.spentSeenBy?.[k] || 0)).toFixed(4);
+    this.spentSeenBy = by;
   }
 }
