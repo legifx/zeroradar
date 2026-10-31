@@ -6,7 +6,7 @@ import { Store, sevRank } from "./lib/store.mjs";
 import { ghsa, ghsaByCve, nvd, kev, epss, hibp, osvFixes } from "./sources/advisories.mjs";
 import { FEEDS, fetchFeed, hackernews, cvesIn } from "./sources/signals.mjs";
 import { triage, enrich, enrichHash, enrichState, pool, findDuplicates } from "./ai.mjs";
-import { spent, spentBy, llmAvailable } from "./lib/llm.mjs";
+import { spent, spentAbo, spentBy, llmAvailable, setLlmLog } from "./lib/llm.mjs";
 import { Publisher } from "./lib/publish.mjs";
 import { isTop, urgency } from "./rules.mjs";
 
@@ -21,13 +21,15 @@ const needsEnrich = (e) =>
   !e.ai || (e.ai.hash !== enrichHash(e) && (e.ai.state !== enrichState(e) || !(e.ai.at > ago(REENRICH_AFTER_SEC))));
 
 export class Engine {
-  constructor({ storeFile, publicDir, log, githubToken, nvdKey, dailyLlmUsd = 0.2 }) {
+  constructor({ storeFile, publicDir, log, githubToken, nvdKey, dailyLlmUsd = 0.2, dailyAboUsd = 1 }) {
     this.store = new Store(storeFile);
     this.publisher = new Publisher(publicDir);
     this.log = log;
     this.githubToken = githubToken;
     this.nvdKey = nvdKey;
     this.dailyLlmUsd = dailyLlmUsd;
+    this.dailyAboUsd = dailyAboUsd;
+    setLlmLog(log);
     this.health = this.store.data.health || {};
     this.last = this.store.data.lastRun || {}; // Task → Zeitpunkt des letzten Erfolgs
     this.lastDedupe = 0;
@@ -249,20 +251,25 @@ export class Engine {
 
   #llmOk() {
     this.#trackSpend();
-    return llmAvailable() && this.store.data.llm.usd < this.dailyLlmUsd;
+    const l = this.store.data.llm;
+    return llmAvailable() && l.usd < this.dailyLlmUsd && (l.abo || 0) < this.dailyAboUsd;
   }
 
-  /** Tagesbudget für die KI: Kosten seit dem letzten Blick aufaddieren, um Mitternacht (UTC) neu. */
+  /** Tagesbudget für die KI (usd = echtes Geld über OpenRouter, abo = API-Gegenwert über das Claude-Abo),
+   *  Kosten seit dem letzten Blick aufaddieren, um Mitternacht (UTC) neu. */
   #trackSpend() {
     const day = new Date().toISOString().slice(0, 10);
     const l = (this.store.data.llm ||= { day, usd: 0 });
     if (l.day !== day) {
-      this.log(`KI-Kosten ${l.day}: ${l.usd} USD ${JSON.stringify(l.by || {})}`);
-      Object.assign(l, { day, usd: 0, by: {} });
+      this.log(`KI-Kosten ${l.day}: ${l.usd} USD bezahlt, Abo-Gegenwert ${l.abo || 0} USD ${JSON.stringify(l.by || {})}`);
+      Object.assign(l, { day, usd: 0, abo: 0, by: {} });
     }
     const s = spent();
     l.usd = +(l.usd + s - (this.spentSeen || 0)).toFixed(4);
     this.spentSeen = s;
+    const a = spentAbo();
+    l.abo = +((l.abo || 0) + a - (this.aboSeen || 0)).toFixed(4);
+    this.aboSeen = a;
     const by = spentBy();
     l.by ||= {};
     for (const [k, v] of Object.entries(by)) l.by[k] = +((l.by[k] || 0) + v - (this.spentSeenBy?.[k] || 0)).toFixed(4);

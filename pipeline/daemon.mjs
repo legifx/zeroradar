@@ -26,6 +26,7 @@ const engine = new Engine({
   githubToken: process.env.GITHUB_TOKEN,
   nvdKey: process.env.NVD_API_KEY,
   dailyLlmUsd: Number(process.env.ZR_LLM_DAILY_USD || 0.2),
+  dailyAboUsd: Number(process.env.ZR_ABO_DAILY_USD || 1),
 });
 
 // ---------- Website benachrichtigen (entprellt) ----------

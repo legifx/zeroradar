@@ -15,3 +15,6 @@ nur mit Pflicht-Reasoning und verschmilzt verschiedene CVEs. Für einen Sicherhe
 mehr als ein Drittel der Kosten. Gespart wird über die Menge (Neubewertung gedrosselt, Dedupe 30 min, Deckel 0,20 USD).
 Nicht über das Claude-Abo: ein öffentlicher 24/7-Dienst ist keine persönliche Claude-Code-Nutzung, er würde legis
 Nutzungslimits mitverbrauchen und bei erreichtem Limit stehen bleiben.
+
+**Nachtrag 2026-10-31 (später):** legi hat entschieden, trotzdem das Abo zu nutzen → Hauptweg jetzt ADR 0004,
+OpenRouter bleibt Ausweichweg.

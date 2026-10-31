@@ -23,6 +23,11 @@ Zero Radar: frischeste Sicherheitslücken & Leaks in Echtzeit – Website, RSS, 
   im gefüllten Feld, Überschriften im Satzbau, Urteil als Tabelle. Keine Mono-Großbuchstaben mehr.
 - Zero Radar steht auf der Bio-Seite (bio-legifx.vercel.app, Platz 2 nach Synagy): Blob-Stand + data/defaults.ts im Repo legifx/bio.
 
+### 2026-10-31 · KI über das Claude-Abo
+- legi: Haiku 5.5 über das Claude-Abo statt OpenRouter. `pipeline/lib/llm.mjs` ruft `claude -p` (Haiku, ohne
+  Einstellungen/Tools/MCP, leerer Ordner) auf, OpenRouter nur noch als Ausweichweg bei Fehlern (ADR 0004).
+- Tageszeile `KI-Kosten` zeigt jetzt bezahlt (OpenRouter) und Abo-Gegenwert getrennt.
+
 ### 2026-10-31 · KI-Kosten halbiert, Modell bleibt Haiku
 - legi: bis 0,25 USD/Tag über OpenRouter zu viel. Ursache war die Menge, nicht das Modell: 30.10. = 0,19 USD für
   179 Bewertungen (nur 78 Einträge neu, der Rest Neubewertungen wegen jeder neuen Quelle), Triage und Dedupe alle 2 min.
